@@ -202,14 +202,11 @@
   }
 
   function handleHeaderMouseEnter() {
-    if (hideTimeout) {
-      clearTimeout(hideTimeout);
-    }
     headerVisible = true;
   }
 
   function handleHeaderMouseLeave() {
-    startHideTimer();
+    headerVisible = false;
   }
 
   function handleMouseMove(event) {
@@ -319,6 +316,7 @@
 <style>
   :root {
     --background-color: #f5f1e8;
+    --background-color-hover: #e8e2d0;
   }
 
   .reader-wrapper {
@@ -368,7 +366,7 @@
   }
 
   .close-btn:hover {
-    background: #f7fafc;
+    background: var(--background-color-hover);
   }
 
   .fullscreen-btn {
@@ -385,7 +383,7 @@
   }
 
   .fullscreen-btn:hover {
-    background: #f7fafc;
+    background: var(--background-color-hover);
   }
 
   .reader-container {
