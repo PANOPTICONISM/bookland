@@ -195,6 +195,9 @@
     }
   }
 
+  let touchStartX = 0;
+  let touchStartY = 0;
+
   function handleKeyPress(event) {
     if (event.key === "ArrowRight") {
       goNext();
@@ -202,6 +205,29 @@
       goPrev();
     } else if (event.key === "Escape") {
       onClose();
+    }
+  }
+
+  function handleTouchStart(event) {
+    touchStartX = event.touches[0].clientX;
+    touchStartY = event.touches[0].clientY;
+  }
+
+  function handleTouchEnd(event) {
+    const touchEndX = event.changedTouches[0].clientX;
+    const touchEndY = event.changedTouches[0].clientY;
+    const diffX = touchStartX - touchEndX;
+    const diffY = Math.abs(touchStartY - touchEndY);
+
+    // Only consider horizontal swipes (ignore if too much vertical movement)
+    if (diffY < 50) {
+      if (diffX > 50) {
+        // Swiped left - go to next page
+        goNext();
+      } else if (diffX < -50) {
+        // Swiped right - go to previous page
+        goPrev();
+      }
     }
   }
 
@@ -316,8 +342,14 @@
       <button onclick={onClose}>Go Back</button>
     </div>
   {:else}
-    <div class="reader-container" bind:this={readerContainer}></div>
-
+    <div
+      class="reader-container"
+      bind:this={readerContainer}
+      ontouchstart={handleTouchStart}
+      ontouchend={handleTouchEnd}
+      role="main"
+      aria-label="Book reader"
+    ></div>
     {#if totalLocations > 0}
       <div class="progress-bar">
         <span>{Math.round((currentLocation / totalLocations) * 100)}%</span>
