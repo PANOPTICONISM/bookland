@@ -86,6 +86,19 @@
         }
       });
 
+      view.addEventListener("load", (e) => {
+        const doc = e.detail.doc;
+        if (doc && doc.documentElement) {
+          const style = doc.createElement("style");
+          style.textContent = `
+            p {
+              font-size: 18px;
+            }
+          `;
+          doc.head.appendChild(style);
+        }
+      });
+
       // Create a File object from the blob with proper filename
       // Foliate-js needs the filename to determine file type
       const filename = bookMetadata.title
