@@ -17,7 +17,14 @@ func main() {
 		dataPath = "./data"
 	}
 
-	err := os.MkdirAll(filepath.Join(dataPath, "books"), 0755)
+	// Convert to absolute path
+	absDataPath, err := filepath.Abs(dataPath)
+	if err != nil {
+		log.Fatal("Failed to get absolute path:", err)
+	}
+	dataPath = absDataPath
+
+	err = os.MkdirAll(filepath.Join(dataPath, "books"), 0755)
 	if err != nil {
 		log.Fatal("Failed to create data directory:", err)
 	}
@@ -37,6 +44,7 @@ func main() {
 	api.HandleFunc("/books/{id}", handlers.GetBook).Methods("GET")
 	api.HandleFunc("/books/{id}/file", handlers.ServeBookFile).Methods("GET")
 	api.HandleFunc("/books/{id}/cover", handlers.ServeCover).Methods("GET")
+	api.HandleFunc("/books/{id}/cover", handlers.UploadCover).Methods("POST")
 
 	// Serve static frontend files in production
 	staticPath := os.Getenv("STATIC_PATH")
