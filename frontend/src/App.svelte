@@ -7,10 +7,8 @@
   let selectedBookId = $state(null);
 
   onMount(() => {
-    // Initialize from URL
     updateFromURL();
 
-    // Listen for back/forward button
     window.addEventListener('popstate', updateFromURL);
 
     return () => {
@@ -34,14 +32,12 @@
   function openBook(bookId) {
     selectedBookId = bookId;
     currentView = 'reader';
-    // Update URL without page reload
     window.history.pushState({}, '', `/book/${bookId}`);
   }
 
   function closeReader() {
     currentView = 'library';
     selectedBookId = null;
-    // Update URL without page reload
     window.history.pushState({}, '', '/');
   }
 </script>
