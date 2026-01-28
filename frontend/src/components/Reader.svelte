@@ -18,6 +18,10 @@
   let currentPage = $state(1);
   let totalPages = $state(0);
 
+  // Header visibility
+  let headerVisible = $state(true);
+  let hideTimeout = null;
+
   // Set up PDF.js worker - use worker from public directory
   pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
@@ -34,12 +38,14 @@
       bookBlob = await fileResponse.blob();
 
       loading = false;
+      startHideTimer();
     } catch (err) {
       error = err.message;
       loading = false;
     }
 
     return () => {
+      if (hideTimeout) clearTimeout(hideTimeout);
       if (view) view.remove();
       if (pdfDoc) pdfDoc.destroy();
     };
@@ -152,12 +158,40 @@
     else if (event.key === 'ArrowLeft') goPrev();
     else if (event.key === 'Escape') onClose();
   }
+
+  function startHideTimer() {
+    if (hideTimeout) clearTimeout(hideTimeout);
+    hideTimeout = setTimeout(() => {
+      headerVisible = false;
+    }, 3000);
+  }
+
+  function handleHeaderMouseEnter() {
+    if (hideTimeout) clearTimeout(hideTimeout);
+    headerVisible = true;
+  }
+
+  function handleHeaderMouseLeave() {
+    startHideTimer();
+  }
+
+  function handleMouseMove(event) {
+    if (event.clientY < 60 && !headerVisible) {
+      headerVisible = true;
+    }
+  }
 </script>
 
 <svelte:window on:keydown={handleKeyPress} />
 
-<div class="reader-wrapper">
-  <div class="reader-header">
+<div class="reader-wrapper" onmousemove={handleMouseMove} role="main">
+  <div
+    class="reader-header"
+    class:hidden={!headerVisible}
+    onmouseenter={handleHeaderMouseEnter}
+    onmouseleave={handleHeaderMouseLeave}
+    role="banner"
+  >
     <button class="close-btn" onclick={onClose}>
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M19 12H5M12 19l-7-7 7-7"/>
@@ -217,12 +251,23 @@
   }
 
   .reader-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 1rem 2rem;
     background: white;
     border-bottom: 1px solid #e2e8f0;
+    z-index: 1001;
+    transform: translateY(0);
+    transition: transform 0.3s ease-in-out;
+  }
+
+  .reader-header.hidden {
+    transform: translateY(-100%);
   }
 
   .close-btn {
@@ -257,6 +302,7 @@
     margin: 0 auto;
     width: 100%;
     padding: 2rem;
+    padding-top: 4rem;
   }
 
   .loading,
@@ -268,6 +314,7 @@
     justify-content: center;
     gap: 1rem;
     color: #4a5568;
+    padding-top: 4rem;
   }
 
   .spinner {
@@ -326,6 +373,7 @@
   @media (max-width: 768px) {
     .reader-container {
       padding: 1rem;
+      padding-top: 4rem;
     }
 
     .navigation {
