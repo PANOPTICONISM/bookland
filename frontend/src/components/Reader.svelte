@@ -1,24 +1,53 @@
 <script>
   import { onMount } from 'svelte';
   import 'foliate-js/view.js';
+  import * as pdfjsLib from 'pdfjs-dist';
 
-  export let bookId;
-  export let onClose;
+  let { bookId, onClose } = $props();
 
-  let readerContainer;
-  let view = null;
-  let loading = true;
-  let error = null;
-  let currentLocation = 0;
-  let totalLocations = 0;
+  let readerContainer = $state();
+  let view = $state(null);
+  let loading = $state(true);
+  let error = $state(null);
+  let currentLocation = $state(0);
+  let totalLocations = $state(0);
+
+  let bookBlob = $state(null);
+  let bookMetadata = $state(null);
+  let pdfDoc = $state(null);
+  let currentPage = $state(1);
+  let totalPages = $state(0);
+
+  // Set up PDF.js worker - use worker from public directory
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
   onMount(async () => {
     try {
-      const response = await fetch(`/api/books/${bookId}/file`);
-      if (!response.ok) throw new Error('Failed to load book');
+      // Fetch book metadata first to determine file type
+      const metadataResponse = await fetch(`/api/books/${bookId}`);
+      if (!metadataResponse.ok) throw new Error('Failed to load book metadata');
+      bookMetadata = await metadataResponse.json();
 
-      const blob = await response.blob();
+      // Fetch the book file
+      const fileResponse = await fetch(`/api/books/${bookId}/file`);
+      if (!fileResponse.ok) throw new Error('Failed to load book');
+      bookBlob = await fileResponse.blob();
 
+      loading = false;
+    } catch (err) {
+      error = err.message;
+      loading = false;
+    }
+
+    return () => {
+      if (view) view.remove();
+      if (pdfDoc) pdfDoc.destroy();
+    };
+  });
+
+  // Effect for EPUB rendering
+  $effect(() => {
+    if (readerContainer && bookBlob && bookMetadata && bookMetadata.fileType === 'epub' && !view) {
       // Create foliate-view web component
       view = document.createElement('foliate-view');
       view.style.width = '100%';
@@ -34,25 +63,88 @@
         }
       });
 
-      // Open the book
-      await view.open(blob);
-      loading = false;
-    } catch (err) {
-      error = err.message;
-      loading = false;
-    }
+      // Create a File object from the blob with proper filename
+      // Foliate-js needs the filename to determine file type
+      const filename = bookMetadata.title ? `${bookMetadata.title}.epub` : 'book.epub';
+      const file = new File([bookBlob], filename, { type: 'application/epub+zip' });
 
-    return () => {
-      if (view) view.remove();
-    };
+      // Open the book and navigate to the start
+      view.open(file).then(() => {
+        // Navigate to the beginning of the book
+        view.goTo(0);
+      }).catch(err => {
+        error = 'Failed to open EPUB: ' + err.message;
+      });
+    }
   });
 
+  // Effect for PDF rendering
+  $effect(() => {
+    if (readerContainer && bookBlob && bookMetadata && bookMetadata.fileType === 'pdf' && !pdfDoc) {
+      loadPDF();
+    }
+  });
+
+  async function loadPDF() {
+    try {
+      const arrayBuffer = await bookBlob.arrayBuffer();
+      pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      totalPages = pdfDoc.numPages;
+      totalLocations = totalPages;
+      await renderPDFPage(1);
+    } catch (err) {
+      error = 'Failed to load PDF: ' + err.message;
+    }
+  }
+
+  async function renderPDFPage(pageNum) {
+    if (!pdfDoc) return;
+
+    currentPage = pageNum;
+    currentLocation = pageNum;
+
+    const page = await pdfDoc.getPage(pageNum);
+    const scale = 1.5;
+    const viewport = page.getViewport({ scale });
+
+    // Clear previous content
+    readerContainer.innerHTML = '';
+
+    // Create canvas
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+    canvas.style.display = 'block';
+    canvas.style.margin = '0 auto';
+
+    readerContainer.appendChild(canvas);
+
+    // Render PDF page
+    await page.render({
+      canvasContext: context,
+      viewport: viewport
+    }).promise;
+  }
+
   function goNext() {
-    view?.next();
+    if (bookMetadata?.fileType === 'epub') {
+      view?.next();
+    } else if (bookMetadata?.fileType === 'pdf') {
+      if (currentPage < totalPages) {
+        renderPDFPage(currentPage + 1);
+      }
+    }
   }
 
   function goPrev() {
-    view?.prev();
+    if (bookMetadata?.fileType === 'epub') {
+      view?.prev();
+    } else if (bookMetadata?.fileType === 'pdf') {
+      if (currentPage > 1) {
+        renderPDFPage(currentPage - 1);
+      }
+    }
   }
 
   function handleKeyPress(event) {
@@ -66,7 +158,7 @@
 
 <div class="reader-wrapper">
   <div class="reader-header">
-    <button class="close-btn" on:click={onClose}>
+    <button class="close-btn" onclick={onClose}>
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M19 12H5M12 19l-7-7 7-7"/>
       </svg>
@@ -74,7 +166,11 @@
     </button>
     {#if totalLocations > 0}
       <div class="progress">
-        <span>{Math.round((currentLocation / totalLocations) * 100)}%</span>
+        {#if bookMetadata?.fileType === 'pdf'}
+          <span>Page {currentLocation} of {totalLocations}</span>
+        {:else}
+          <span>{Math.round((currentLocation / totalLocations) * 100)}%</span>
+        {/if}
       </div>
     {/if}
   </div>
@@ -87,18 +183,18 @@
   {:else if error}
     <div class="error">
       <p>Error: {error}</p>
-      <button on:click={onClose}>Go Back</button>
+      <button onclick={onClose}>Go Back</button>
     </div>
   {:else}
     <div class="reader-container" bind:this={readerContainer}></div>
 
     <div class="navigation">
-      <button class="nav-btn" on:click={goPrev}>
+      <button class="nav-btn" onclick={goPrev} aria-label="Previous page">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="15 18 9 12 15 6"/>
         </svg>
       </button>
-      <button class="nav-btn" on:click={goNext}>
+      <button class="nav-btn" onclick={goNext} aria-label="Next page">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="9 18 15 12 9 6"/>
         </svg>
@@ -155,7 +251,7 @@
 
   .reader-container {
     flex: 1;
-    overflow: hidden;
+    overflow: auto;
     position: relative;
     max-width: 900px;
     margin: 0 auto;

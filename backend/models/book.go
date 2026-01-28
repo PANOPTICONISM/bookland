@@ -9,5 +9,6 @@ type Book struct {
 	CoverPath   string    `json:"coverPath"`
 	FilePath    string    `json:"filePath"`
 	FileSize    int64     `json:"fileSize"`
+	FileType    string    `json:"fileType"`
 	AddedAt     time.Time `json:"addedAt"`
 }

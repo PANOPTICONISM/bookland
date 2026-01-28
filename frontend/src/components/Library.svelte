@@ -27,8 +27,9 @@
     if (!files || files.length === 0) return;
 
     const file = files[0];
-    if (!file.name.toLowerCase().endsWith('.epub')) {
-      alert('Please select an EPUB file');
+    const filename = file.name.toLowerCase();
+    if (!filename.endsWith('.epub') && !filename.endsWith('.pdf')) {
+      alert('Please select an EPUB or PDF file');
       return;
     }
 
@@ -38,7 +39,7 @@
   async function uploadBook(file) {
     uploading = true;
     const formData = new FormData();
-    formData.append('epub', file);
+    formData.append('book', file);
 
     try {
       const response = await fetch('/api/books', {
@@ -83,14 +84,16 @@
   <div
     class="upload-zone"
     class:drag-over={dragOver}
-    on:dragover={handleDragOver}
-    on:dragleave={handleDragLeave}
-    on:drop={handleDrop}
+    ondragover={handleDragOver}
+    ondragleave={handleDragLeave}
+    ondrop={handleDrop}
+    role="button"
+    tabindex="0"
   >
     <input
       type="file"
-      accept=".epub"
-      on:change={handleFileSelect}
+      accept=".epub,.pdf"
+      onchange={handleFileSelect}
       id="file-input"
       style="display: none;"
     />
@@ -104,7 +107,7 @@
           <polyline points="17 8 12 3 7 8" />
           <line x1="12" y1="3" x2="12" y2="15" />
         </svg>
-        <p>Drop EPUB file here or click to upload</p>
+        <p>Drop EPUB or PDF file here or click to upload</p>
       {/if}
     </label>
   </div>
@@ -112,7 +115,7 @@
   {#if books.length > 0}
     <div class="books-grid">
       {#each books as book (book.id)}
-        <div class="book-card" on:click={() => onOpenBook(book.id)}>
+        <button type="button" class="book-card" onclick={() => onOpenBook(book.id)}>
           {#if book.coverPath}
             <img src="/api/books/{book.id}/cover" alt={book.title} />
           {:else}
@@ -127,7 +130,7 @@
             <h3>{book.title}</h3>
             <p>{book.author}</p>
           </div>
-        </div>
+        </button>
       {/each}
     </div>
   {:else}
@@ -136,7 +139,7 @@
         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
         <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
       </svg>
-      <p>No books yet. Upload your first EPUB!</p>
+      <p>No books yet. Upload your first EPUB or PDF!</p>
     </div>
   {/if}
 </div>
@@ -210,6 +213,8 @@
     background: white;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     transition: transform 0.2s, box-shadow 0.2s;
+    border: none;
+    padding: 0;
   }
 
   .book-card:hover {

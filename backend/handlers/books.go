@@ -32,15 +32,29 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, header, err := r.FormFile("epub")
+	file, header, err := r.FormFile("book")
 	if err != nil {
-		http.Error(w, "Failed to read file", http.StatusBadRequest)
-		return
+		// Try legacy field name for backwards compatibility
+		file, header, err = r.FormFile("epub")
+		if err != nil {
+			http.Error(w, "Failed to read file", http.StatusBadRequest)
+			return
+		}
 	}
 	defer file.Close()
 
-	if !strings.HasSuffix(strings.ToLower(header.Filename), ".epub") {
-		http.Error(w, "Only .epub files are supported", http.StatusBadRequest)
+	filename := strings.ToLower(header.Filename)
+	var fileType string
+	var fileExt string
+
+	if strings.HasSuffix(filename, ".epub") {
+		fileType = "epub"
+		fileExt = ".epub"
+	} else if strings.HasSuffix(filename, ".pdf") {
+		fileType = "pdf"
+		fileExt = ".pdf"
+	} else {
+		http.Error(w, "Only .epub and .pdf files are supported", http.StatusBadRequest)
 		return
 	}
 
@@ -52,8 +66,8 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	epubPath := filepath.Join(bookDir, "book.epub")
-	dst, err := os.Create(epubPath)
+	bookPath := filepath.Join(bookDir, "book"+fileExt)
+	dst, err := os.Create(bookPath)
 	if err != nil {
 		http.Error(w, "Failed to save file", http.StatusInternalServerError)
 		return
@@ -66,21 +80,28 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	title, author, coverPath := extractMetadata(epubPath, bookDir)
+	var title, author, coverPath string
+	switch fileType {
+	case "epub":
+		title, author, coverPath = extractMetadata(bookPath, bookDir)
+	case "pdf":
+		title, author, coverPath = extractPDFMetadata(bookPath, bookDir)
+	}
 
 	book := models.Book{
 		ID:        bookID,
 		Title:     title,
 		Author:    author,
 		CoverPath: coverPath,
-		FilePath:  epubPath,
+		FilePath:  bookPath,
 		FileSize:  fileSize,
+		FileType:  fileType,
 		AddedAt:   time.Now(),
 	}
 
 	_, err = db.DB.Exec(
-		"INSERT INTO books (id, title, author, cover_path, file_path, file_size, added_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		book.ID, book.Title, book.Author, book.CoverPath, book.FilePath, book.FileSize, book.AddedAt,
+		"INSERT INTO books (id, title, author, cover_path, file_path, file_size, file_type, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		book.ID, book.Title, book.Author, book.CoverPath, book.FilePath, book.FileSize, book.FileType, book.AddedAt,
 	)
 	if err != nil {
 		http.Error(w, "Failed to save book metadata", http.StatusInternalServerError)
@@ -93,7 +114,7 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetBooks(w http.ResponseWriter, r *http.Request) {
-	rows, err := db.DB.Query("SELECT id, title, author, cover_path, file_path, file_size, added_at FROM books ORDER BY added_at DESC")
+	rows, err := db.DB.Query("SELECT id, title, author, cover_path, file_path, file_size, file_type, added_at FROM books ORDER BY added_at DESC")
 	if err != nil {
 		http.Error(w, "Failed to fetch books", http.StatusInternalServerError)
 		return
@@ -103,7 +124,7 @@ func GetBooks(w http.ResponseWriter, r *http.Request) {
 	books := make([]models.Book, 0)
 	for rows.Next() {
 		var book models.Book
-		err := rows.Scan(&book.ID, &book.Title, &book.Author, &book.CoverPath, &book.FilePath, &book.FileSize, &book.AddedAt)
+		err := rows.Scan(&book.ID, &book.Title, &book.Author, &book.CoverPath, &book.FilePath, &book.FileSize, &book.FileType, &book.AddedAt)
 		if err != nil {
 			log.Println("Scan error:", err)
 			continue
@@ -121,9 +142,9 @@ func GetBook(w http.ResponseWriter, r *http.Request) {
 
 	var book models.Book
 	err := db.DB.QueryRow(
-		"SELECT id, title, author, cover_path, file_path, file_size, added_at FROM books WHERE id = ?",
+		"SELECT id, title, author, cover_path, file_path, file_size, file_type, added_at FROM books WHERE id = ?",
 		bookID,
-	).Scan(&book.ID, &book.Title, &book.Author, &book.CoverPath, &book.FilePath, &book.FileSize, &book.AddedAt)
+	).Scan(&book.ID, &book.Title, &book.Author, &book.CoverPath, &book.FilePath, &book.FileSize, &book.FileType, &book.AddedAt)
 
 	if err != nil {
 		http.Error(w, "Book not found", http.StatusNotFound)
@@ -138,14 +159,20 @@ func ServeBookFile(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	bookID := vars["id"]
 
-	var filePath string
-	err := db.DB.QueryRow("SELECT file_path FROM books WHERE id = ?", bookID).Scan(&filePath)
+	var filePath, fileType string
+	err := db.DB.QueryRow("SELECT file_path, file_type FROM books WHERE id = ?", bookID).Scan(&filePath, &fileType)
 	if err != nil {
 		http.Error(w, "Book not found", http.StatusNotFound)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/epub+zip")
+	// Set appropriate content type based on file type
+	if fileType == "pdf" {
+		w.Header().Set("Content-Type", "application/pdf")
+	} else {
+		w.Header().Set("Content-Type", "application/epub+zip")
+	}
+
 	http.ServeFile(w, r, filePath)
 }
 
@@ -282,6 +309,58 @@ func extractMetadata(epubPath, bookDir string) (title, author, coverPath string)
 			}
 		}
 	}
+
+	return
+}
+
+func extractPDFMetadata(pdfPath, bookDir string) (title, author, coverPath string) {
+	title = "Unknown Title"
+	author = "Unknown Author"
+	coverPath = ""
+
+	// Read PDF file for basic metadata extraction
+	data, err := os.ReadFile(pdfPath)
+	if err != nil {
+		return
+	}
+
+	content := string(data)
+
+	// Try to extract title from PDF metadata
+	if idx := strings.Index(content, "/Title"); idx != -1 {
+		start := strings.Index(content[idx:], "(")
+		if start != -1 {
+			start += idx + 1
+			end := strings.Index(content[start:], ")")
+			if end != -1 && end < 200 {
+				extractedTitle := content[start : start+end]
+				extractedTitle = strings.TrimSpace(extractedTitle)
+				if len(extractedTitle) > 0 && len(extractedTitle) < 200 {
+					title = extractedTitle
+				}
+			}
+		}
+	}
+
+	// Try to extract author from PDF metadata
+	if idx := strings.Index(content, "/Author"); idx != -1 {
+		start := strings.Index(content[idx:], "(")
+		if start != -1 {
+			start += idx + 1
+			end := strings.Index(content[start:], ")")
+			if end != -1 && end < 200 {
+				extractedAuthor := content[start : start+end]
+				extractedAuthor = strings.TrimSpace(extractedAuthor)
+				if len(extractedAuthor) > 0 && len(extractedAuthor) < 200 {
+					author = extractedAuthor
+				}
+			}
+		}
+	}
+
+	// PDF cover generation would require external tools (like ImageMagick)
+	// For now, we'll skip cover generation for PDFs
+	// TODO: Implement PDF thumbnail generation
 
 	return
 }

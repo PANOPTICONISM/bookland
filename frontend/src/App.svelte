@@ -1,18 +1,48 @@
 <script>
+  import { onMount } from 'svelte';
   import Library from './components/Library.svelte';
   import Reader from './components/Reader.svelte';
 
-  let currentView = 'library';
-  let selectedBookId = null;
+  let currentView = $state('library');
+  let selectedBookId = $state(null);
+
+  onMount(() => {
+    // Initialize from URL
+    updateFromURL();
+
+    // Listen for back/forward button
+    window.addEventListener('popstate', updateFromURL);
+
+    return () => {
+      window.removeEventListener('popstate', updateFromURL);
+    };
+  });
+
+  function updateFromURL() {
+    const path = window.location.pathname;
+    const match = path.match(/^\/book\/([^\/]+)$/);
+
+    if (match) {
+      selectedBookId = match[1];
+      currentView = 'reader';
+    } else {
+      currentView = 'library';
+      selectedBookId = null;
+    }
+  }
 
   function openBook(bookId) {
     selectedBookId = bookId;
     currentView = 'reader';
+    // Update URL without page reload
+    window.history.pushState({}, '', `/book/${bookId}`);
   }
 
   function closeReader() {
     currentView = 'library';
     selectedBookId = null;
+    // Update URL without page reload
+    window.history.pushState({}, '', '/');
   }
 </script>
 
