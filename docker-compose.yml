@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: reading
+    ports:
+      - "8080:8080"
+    environment:
+      - DATA_PATH=/data
+      - STATIC_PATH=/app/static
+      - PORT=8080
+    volumes:
+      - book-data:/data
+    restart: unless-stopped
+
+volumes:
+  book-data:
+    driver: local

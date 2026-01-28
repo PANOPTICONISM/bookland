@@ -1,0 +1,25 @@
+# Backend
+backend/data
+backend/*.db
+
+# Frontend
+frontend/node_modules
+frontend/dist
+frontend/.vite
+
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# IDE
+.vscode
+.idea
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
