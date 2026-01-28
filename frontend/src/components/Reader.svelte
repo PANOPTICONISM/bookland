@@ -21,6 +21,7 @@
   // Header visibility
   let headerVisible = $state(true);
   let hideTimeout = null;
+  let isFullscreen = $state(false);
 
   // Set up PDF.js worker - use worker from public directory
   pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
@@ -180,9 +181,24 @@
       headerVisible = true;
     }
   }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      isFullscreen = true;
+    } else {
+      document.exitFullscreen();
+      isFullscreen = false;
+    }
+  }
+
+  // Listen for fullscreen changes (e.g., user presses Escape)
+  function handleFullscreenChange() {
+    isFullscreen = !!document.fullscreenElement;
+  }
 </script>
 
-<svelte:window on:keydown={handleKeyPress} />
+<svelte:window on:keydown={handleKeyPress} on:fullscreenchange={handleFullscreenChange} />
 
 <div class="reader-wrapper" onmousemove={handleMouseMove} role="main">
   <div
@@ -198,15 +214,17 @@
       </svg>
       Back to Library
     </button>
-    {#if totalLocations > 0}
-      <div class="progress">
-        {#if bookMetadata?.fileType === 'pdf'}
-          <span>Page {currentLocation} of {totalLocations}</span>
-        {:else}
-          <span>{Math.round((currentLocation / totalLocations) * 100)}%</span>
-        {/if}
-      </div>
-    {/if}
+    <button class="fullscreen-btn" onclick={toggleFullscreen} aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}>
+      {#if isFullscreen}
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+        </svg>
+      {:else}
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+        </svg>
+      {/if}
+    </button>
   </div>
 
   {#if loading}
@@ -222,18 +240,11 @@
   {:else}
     <div class="reader-container" bind:this={readerContainer}></div>
 
-    <div class="navigation">
-      <button class="nav-btn" onclick={goPrev} aria-label="Previous page">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="15 18 9 12 15 6"/>
-        </svg>
-      </button>
-      <button class="nav-btn" onclick={goNext} aria-label="Next page">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="9 18 15 12 9 6"/>
-        </svg>
-      </button>
-    </div>
+    {#if totalLocations > 0}
+      <div class="progress-bar">
+        <span>{Math.round((currentLocation / totalLocations) * 100)}%</span>
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -288,10 +299,21 @@
     background: #f7fafc;
   }
 
-  .progress {
-    font-size: 0.9rem;
-    color: #718096;
-    font-weight: 500;
+  .fullscreen-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 6px;
+    color: #4a5568;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .fullscreen-btn:hover {
+    background: #f7fafc;
   }
 
   .reader-container {
@@ -340,45 +362,19 @@
     font-size: 1rem;
   }
 
-  .navigation {
+  .progress-bar {
     position: fixed;
-    bottom: 2rem;
-    right: 2rem;
-    display: flex;
-    gap: 1rem;
-  }
-
-  .nav-btn {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: white;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #4a5568;
-    transition: all 0.2s;
-  }
-
-  .nav-btn:hover {
-    background: #4299e1;
-    color: white;
-    border-color: #4299e1;
-    box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3);
+    bottom: 1.5rem;
+    right: 1.5rem;
+    font-size: 0.85rem;
+    color: #718096;
+    z-index: 1001;
   }
 
   @media (max-width: 768px) {
     .reader-container {
       padding: 1rem;
       padding-top: 4rem;
-    }
-
-    .navigation {
-      bottom: 1rem;
-      right: 1rem;
     }
   }
 </style>
