@@ -5,14 +5,14 @@ import (
 	"log"
 	"strings"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 var DB *sql.DB
 
 func InitDB(dataPath string) error {
 	var err error
-	DB, err = sql.Open("sqlite3", dataPath+"/books.db")
+	DB, err = sql.Open("sqlite", dataPath+"/books.db")
 	if err != nil {
 		return err
 	}

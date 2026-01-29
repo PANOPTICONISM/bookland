@@ -1,7 +1,7 @@
 services:
   app:
     build: .
-    container_name: reading
+    container_name: bookland
     ports:
       - "8080:8080"
     environment:

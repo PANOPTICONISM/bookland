@@ -3,14 +3,12 @@ package handlers
 import (
 	"archive/zip"
 	"fmt"
-	"image/jpeg"
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"github.com/gen2brain/go-fitz"
 )
 
 // ExtractEPUBMetadata extracts title, author, and cover from an EPUB file.
@@ -281,43 +279,39 @@ func ExtractPDFMetadata(pdfPath, originalName string) (title, author string) {
 	return
 }
 
-// ExtractPDFCover extracts the first page of a PDF as a JPEG cover image.
+// ExtractPDFCover extracts the first page of a PDF as a JPEG cover image using pdftoppm.
 func ExtractPDFCover(pdfPath, coverDir, bookID string) string {
-	doc, err := fitz.New(pdfPath)
-	if err != nil {
-		log.Printf("Failed to open PDF %s: %v", pdfPath, err)
-		return ""
-	}
-	defer doc.Close()
+	// Output path without extension (pdftoppm adds it)
+	outputBase := filepath.Join(coverDir, bookID)
+	coverPath := outputBase + "-001.jpg"
 
-	if doc.NumPage() == 0 {
-		log.Printf("PDF %s has no pages", pdfPath)
-		return ""
-	}
+	// Use pdftoppm to render first page as JPEG
+	cmd := exec.Command("pdftoppm",
+		"-jpeg",
+		"-f", "1",
+		"-l", "1",
+		"-scale-to", "800",
+		pdfPath,
+		outputBase,
+	)
 
-	// Render first page as image
-	img, err := doc.Image(0)
-	if err != nil {
-		log.Printf("Failed to render PDF page: %v", err)
-		return ""
-	}
-
-	coverPath := filepath.Join(coverDir, bookID+".jpg")
-	outFile, err := os.Create(coverPath)
-	if err != nil {
-		log.Printf("Failed to create cover file: %v", err)
-		return ""
-	}
-	defer outFile.Close()
-
-	// Encode as JPEG with good quality
-	if err := jpeg.Encode(outFile, img, &jpeg.Options{Quality: 85}); err != nil {
-		log.Printf("Failed to encode cover image: %v", err)
-		os.Remove(coverPath)
+	if err := cmd.Run(); err != nil {
+		log.Printf("Failed to extract PDF cover with pdftoppm: %v", err)
 		return ""
 	}
 
-	return coverPath
+	// Rename to remove the -1 suffix
+	finalPath := filepath.Join(coverDir, bookID+".jpg")
+	if err := os.Rename(coverPath, finalPath); err != nil {
+		log.Printf("Failed to rename cover file: %v", err)
+		// Try to use the original path if rename fails
+		if _, err := os.Stat(coverPath); err == nil {
+			return coverPath
+		}
+		return ""
+	}
+
+	return finalPath
 }
 
 // IsImageFile checks if data represents a valid image file by checking magic bytes.
