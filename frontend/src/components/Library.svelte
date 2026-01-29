@@ -1,14 +1,11 @@
 <script>
   import { onMount } from "svelte";
-  import * as pdfjsLib from "pdfjs-dist";
 
   export let onOpenBook;
 
   let books = [];
   let uploading = false;
   let dragOver = false;
-
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
   onMount(async () => {
     await fetchBooks();
@@ -39,50 +36,10 @@
     await uploadBook(file);
   }
 
-  async function generatePDFCover(file) {
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      const page = await pdf.getPage(1);
-
-      const scale = 400 / page.getViewport({ scale: 1 }).width;
-      const viewport = page.getViewport({ scale });
-
-      const canvas = document.createElement("canvas");
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      const context = canvas.getContext("2d");
-
-      await page.render({ canvasContext: context, viewport }).promise;
-
-      return new Promise((resolve) => {
-        canvas.toBlob(resolve, "image/jpeg", 0.85);
-      });
-    } catch (error) {
-      console.error("Failed to generate PDF cover:", error);
-      return null;
-    }
-  }
-
-  async function uploadCover(bookId, coverBlob) {
-    const formData = new FormData();
-    formData.append("cover", coverBlob, "cover.jpg");
-
-    try {
-      await fetch(`/api/books/${bookId}/cover`, {
-        method: "POST",
-        body: formData,
-      });
-    } catch (error) {
-      console.error("Failed to upload cover:", error);
-    }
-  }
-
   async function uploadBook(file) {
     uploading = true;
     const formData = new FormData();
     formData.append("book", file);
-    const isPDF = file.name.toLowerCase().endsWith(".pdf");
 
     try {
       const response = await fetch("/api/books", {
@@ -91,16 +48,6 @@
       });
 
       if (response.ok) {
-        const book = await response.json();
-
-        // Generate and upload cover for PDFs
-        if (isPDF && !book.coverPath) {
-          const coverBlob = await generatePDFCover(file);
-          if (coverBlob) {
-            await uploadCover(book.id, coverBlob);
-          }
-        }
-
         await fetchBooks();
       } else {
         alert("Failed to upload book");

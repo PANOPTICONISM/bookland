@@ -8,10 +8,12 @@ services:
       - "8080:8080"
     environment:
       - DATA_PATH=/data
+      - BOOKS_PATH=/books
       - STATIC_PATH=/app/static
       - PORT=8080
     volumes:
       - book-data:/data
+      - /path/to/books:/books:ro
     restart: unless-stopped
 
 volumes:

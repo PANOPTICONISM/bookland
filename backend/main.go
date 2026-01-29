@@ -17,16 +17,28 @@ func main() {
 		dataPath = "./data"
 	}
 
-	// Convert to absolute path
+	booksPath := os.Getenv("BOOKS_PATH")
+	if booksPath == "" {
+		booksPath = filepath.Join(dataPath, "books")
+	}
+
+	// Convert to absolute paths
 	absDataPath, err := filepath.Abs(dataPath)
 	if err != nil {
-		log.Fatal("Failed to get absolute path:", err)
+		log.Fatal("Failed to get absolute data path:", err)
 	}
 	dataPath = absDataPath
 
-	err = os.MkdirAll(filepath.Join(dataPath, "books"), 0755)
+	absBooksPath, err := filepath.Abs(booksPath)
 	if err != nil {
-		log.Fatal("Failed to create data directory:", err)
+		log.Fatal("Failed to get absolute books path:", err)
+	}
+	booksPath = absBooksPath
+
+	// Create necessary directories
+	err = os.MkdirAll(filepath.Join(dataPath, "covers"), 0755)
+	if err != nil {
+		log.Fatal("Failed to create covers directory:", err)
 	}
 
 	handlers.DataPath = dataPath
@@ -35,6 +47,10 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to initialize database:", err)
 	}
+
+	// Scan books directory on startup
+	log.Printf("Scanning books directory: %s", booksPath)
+	scanBooksOnStartup(booksPath)
 
 	r := mux.NewRouter()
 
@@ -102,4 +118,18 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Serve the file
 	http.FileServer(http.Dir(h.staticPath)).ServeHTTP(w, r)
+}
+
+func scanBooksOnStartup(booksPath string) {
+	addedBooks, err := handlers.ScanDirectory(booksPath)
+	if err != nil {
+		log.Printf("Warning: Failed to scan books directory: %v", err)
+		return
+	}
+
+	if len(addedBooks) > 0 {
+		log.Printf("Scan complete: Added %d books from directory", len(addedBooks))
+	} else {
+		log.Println("Scan complete: No new books found")
+	}
 }
