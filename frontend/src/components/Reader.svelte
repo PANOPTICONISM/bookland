@@ -92,7 +92,7 @@
           const style = doc.createElement("style");
           style.textContent = `
             p {
-              font-size: 18px;
+              font-size: 20px;
             }
           `;
           doc.head.appendChild(style);
