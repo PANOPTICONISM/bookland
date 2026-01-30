@@ -1,15 +1,28 @@
 <script>
   import { onMount } from "svelte";
 
-  export let onOpenBook;
+  let { onOpenBook } = $props();
 
-  let books = [];
-  let uploading = false;
-  let dragOver = false;
+  let books = $state([]);
+  let uploading = $state(false);
+  let dragOver = $state(false);
+  let darkMode = $state(false);
 
   onMount(async () => {
+    darkMode = localStorage.getItem("darkMode") === "true";
+    applyDarkMode(darkMode);
     await fetchBooks();
   });
+
+  function toggleDarkMode() {
+    darkMode = !darkMode;
+    localStorage.setItem("darkMode", darkMode);
+    applyDarkMode(darkMode);
+  }
+
+  function applyDarkMode(enabled) {
+    document.documentElement.classList.toggle("dark", enabled);
+  }
 
   async function fetchBooks() {
     try {
@@ -26,7 +39,7 @@
     const files = event.target.files || event.dataTransfer?.files;
     if (!files || files.length === 0) {
       return;
-    };
+    }
 
     const file = files[0];
     const filename = file.name.toLowerCase();
@@ -76,11 +89,67 @@
     dragOver = false;
     handleFileSelect(event);
   }
+
+  function getReadingProgress(book) {
+    if (!book.readingProgress) return 0;
+    try {
+      const progress = JSON.parse(book.readingProgress);
+      if (progress.type === "epub" && progress.fraction !== undefined) {
+        return Math.round(progress.fraction * 100);
+      } else if (
+        progress.type === "pdf" &&
+        progress.page &&
+        progress.totalPages
+      ) {
+        return Math.round((progress.page / progress.totalPages) * 100);
+      }
+    } catch (e) {
+      return 0;
+    }
+    return 0;
+  }
 </script>
 
 <div class="container">
   <header>
     <h1>My Library</h1>
+    <button
+      class="dark-mode-toggle"
+      onclick={toggleDarkMode}
+      aria-label="Toggle dark mode"
+    >
+      {#if darkMode}
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <circle cx="12" cy="12" r="5" />
+          <line x1="12" y1="1" x2="12" y2="3" />
+          <line x1="12" y1="21" x2="12" y2="23" />
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+          <line x1="1" y1="12" x2="3" y2="12" />
+          <line x1="21" y1="12" x2="23" y2="12" />
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+        </svg>
+      {:else}
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+      {/if}
+    </button>
   </header>
   <div
     class="upload-zone"
@@ -125,7 +194,8 @@
         <button
           type="button"
           class="book-card"
-          onclick={() => onOpenBook(book.id)}>
+          onclick={() => onOpenBook(book.id)}
+        >
           <div class="cover-container">
             {#if book.coverPath}
               <img src="/api/books/{book.id}/cover" alt={book.title} />
@@ -149,6 +219,14 @@
             <span class="file-type-tag" class:pdf={book.fileType === "pdf"}>
               {book.fileType?.toUpperCase() || "EPUB"}
             </span>
+            {#if getReadingProgress(book) > 0}
+              <div class="progress-indicator">
+                <div
+                  class="progress-fill"
+                  style="width: {getReadingProgress(book)}%"
+                ></div>
+              </div>
+            {/if}
           </div>
           <div class="book-info">
             <h3>{book.title}</h3>
@@ -186,12 +264,43 @@
 
   header {
     margin-bottom: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
 
   h1 {
     font-size: 2rem;
     font-weight: 600;
     color: #1a1a1a;
+  }
+
+  :global(.dark) h1 {
+    color: #f7fafc;
+  }
+
+  .dark-mode-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 8px;
+    color: #4a5568;
+    transition:
+      background 0.2s,
+      color 0.2s;
+  }
+
+  .dark-mode-toggle:hover {
+    background: #e2e8f0;
+  }
+
+  :global(.dark) .dark-mode-toggle {
+    color: #e2e8f0;
+  }
+
+  :global(.dark) .dark-mode-toggle:hover {
+    background: #4a5568;
   }
 
   .upload-zone {
@@ -288,6 +397,21 @@
     background: rgba(229, 62, 62, 0.9);
   }
 
+  .progress-indicator {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(0, 0, 0, 0.3);
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: #48bb78;
+    transition: width 0.3s ease;
+  }
+
   .no-cover {
     width: 100%;
     height: 240px;
@@ -332,5 +456,37 @@
 
   .empty-state p {
     font-size: 1.1rem;
+  }
+
+  /* Dark mode styles */
+  :global(.dark) .upload-zone {
+    background: #2d3748;
+    border-color: #4a5568;
+  }
+
+  :global(.dark) .upload-zone:hover,
+  :global(.dark) .upload-zone.drag-over {
+    border-color: #4299e1;
+    background: #2a4365;
+  }
+
+  :global(.dark) .upload-zone label {
+    color: #a0aec0;
+  }
+
+  :global(.dark) .book-card {
+    background: #2d3748;
+  }
+
+  :global(.dark) .book-info h3 {
+    color: #f7fafc;
+  }
+
+  :global(.dark) .book-info p {
+    color: #a0aec0;
+  }
+
+  :global(.dark) .empty-state {
+    color: #718096;
   }
 </style>

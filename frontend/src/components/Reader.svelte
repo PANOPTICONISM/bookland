@@ -126,11 +126,20 @@
         try {
           const doc = e.detail?.doc;
           if (doc && doc.documentElement && doc.head) {
+            const isDark = document.documentElement.classList.contains('dark');
             const style = doc.createElement("style");
             style.textContent = `
               p {
                 font-size: 20px;
               }
+              ${isDark ? `
+              html, body {
+                color: #e2e8f0 !important;
+              }
+              a {
+                color: #63b3ed !important;
+              }
+              ` : ''}
             `;
             doc.head.appendChild(style);
           }
@@ -648,5 +657,40 @@
     align-items: center;
     justify-content: center;
     padding: 0;
+  }
+
+  /* Dark mode styles */
+  :global(.dark) .reader-wrapper {
+    background: #1a202c;
+  }
+
+  :global(.dark) .reader-header {
+    background: rgba(26, 32, 44, 0.95);
+    border-bottom-color: #4a5568;
+  }
+
+  :global(.dark) .close-btn {
+    color: #e2e8f0;
+  }
+
+  :global(.dark) .close-btn:hover {
+    background: #4a5568;
+  }
+
+  :global(.dark) .fullscreen-btn {
+    color: #e2e8f0;
+  }
+
+  :global(.dark) .fullscreen-btn:hover {
+    background: #4a5568;
+  }
+
+  :global(.dark) .loading,
+  :global(.dark) .error {
+    color: #a0aec0;
+  }
+
+  :global(.dark) .progress-bar {
+    color: #a0aec0;
   }
 </style>

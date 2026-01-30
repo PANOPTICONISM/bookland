@@ -25,3 +25,13 @@ body {
   width: 100%;
   min-height: 100vh;
 }
+
+/* Dark mode */
+.dark {
+  color: #e2e8f0;
+  background-color: #1a202c;
+}
+
+.dark body {
+  background-color: #1a202c;
+}

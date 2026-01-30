@@ -123,7 +123,7 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetBooks(w http.ResponseWriter, r *http.Request) {
-	rows, err := db.DB.Query("SELECT id, title, author, cover_path, file_path, file_size, file_type, added_at FROM books ORDER BY added_at DESC")
+	rows, err := db.DB.Query("SELECT id, title, author, cover_path, file_path, file_size, file_type, added_at, reading_progress FROM books ORDER BY added_at DESC")
 	if err != nil {
 		http.Error(w, "Failed to fetch books", http.StatusInternalServerError)
 		return
@@ -133,10 +133,14 @@ func GetBooks(w http.ResponseWriter, r *http.Request) {
 	books := make([]models.Book, 0)
 	for rows.Next() {
 		var book models.Book
-		err := rows.Scan(&book.ID, &book.Title, &book.Author, &book.CoverPath, &book.FilePath, &book.FileSize, &book.FileType, &book.AddedAt)
+		var readingProgress sql.NullString
+		err := rows.Scan(&book.ID, &book.Title, &book.Author, &book.CoverPath, &book.FilePath, &book.FileSize, &book.FileType, &book.AddedAt, &readingProgress)
 		if err != nil {
 			log.Println("Scan error:", err)
 			continue
+		}
+		if readingProgress.Valid {
+			book.ReadingProgress = readingProgress.String
 		}
 		books = append(books, book)
 	}
