@@ -23,6 +23,9 @@
   let hideTimeout = null;
   let isFullscreen = $state(false);
 
+  // Detect touch-only device (no mouse)
+  const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+
   // Set up PDF.js worker - use worker from public directory
   pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
@@ -54,10 +57,16 @@
         clearTimeout(hideTimeout);
       }
       if (view) {
-        view.remove();
+        try {
+          view.remove();
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+        view = null;
       }
       if (pdfDoc) {
         pdfDoc.destroy();
+        pdfDoc = null;
       }
     };
   });
@@ -87,15 +96,19 @@
       });
 
       view.addEventListener("load", (e) => {
-        const doc = e.detail.doc;
-        if (doc && doc.documentElement) {
-          const style = doc.createElement("style");
-          style.textContent = `
-            p {
-              font-size: 20px;
-            }
-          `;
-          doc.head.appendChild(style);
+        try {
+          const doc = e.detail?.doc;
+          if (doc && doc.documentElement && doc.head) {
+            const style = doc.createElement("style");
+            style.textContent = `
+              p {
+                font-size: 20px;
+              }
+            `;
+            doc.head.appendChild(style);
+          }
+        } catch (err) {
+          // Ignore styling errors
         }
       });
 
@@ -146,7 +159,7 @@
   }
 
   async function renderPDFPage(pageNum) {
-    if (!pdfDoc) return;
+    if (!pdfDoc || !readerContainer) return;
 
     currentPage = pageNum;
     currentLocation = pageNum;
@@ -208,6 +221,7 @@
     }
   }
 
+  // All touch handling on wrapper for full-screen coverage
   function handleTouchStart(event) {
     touchStartX = event.touches[0].clientX;
     touchStartY = event.touches[0].clientY;
@@ -217,10 +231,21 @@
     const touchEndX = event.changedTouches[0].clientX;
     const touchEndY = event.changedTouches[0].clientY;
     const diffX = touchStartX - touchEndX;
-    const diffY = Math.abs(touchStartY - touchEndY);
+    const diffY = touchStartY - touchEndY;
+    const absDiffX = Math.abs(diffX);
+    const absDiffY = Math.abs(diffY);
 
-    // Only consider horizontal swipes (ignore if too much vertical movement)
-    if (diffY < 50) {
+    // Check if it's a tap (minimal movement)
+    if (absDiffX < 10 && absDiffY < 10) {
+      // Tap in top area (header region) toggles header visibility
+      if (touchStartY < 80) {
+        headerVisible = !headerVisible;
+      }
+      return;
+    }
+
+    // Horizontal swipes for page navigation (ignore if too much vertical movement)
+    if (absDiffY < 50) {
       if (diffX > 50) {
         // Swiped left - go to next page
         goNext();
@@ -241,14 +266,17 @@
   }
 
   function handleHeaderMouseEnter() {
+    if (isTouchDevice) return;
     headerVisible = true;
   }
 
   function handleHeaderMouseLeave() {
+    if (isTouchDevice) return;
     headerVisible = false;
   }
 
   function handleMouseMove(event) {
+    if (isTouchDevice) return;
     if (event.clientY < 60 && !headerVisible) {
       headerVisible = true;
     }
@@ -275,7 +303,13 @@
   onfullscreenchange={handleFullscreenChange}
 />
 
-<div class="reader-wrapper" onmousemove={handleMouseMove} role="main">
+<div
+  class="reader-wrapper"
+  onmousemove={handleMouseMove}
+  ontouchstart={handleTouchStart}
+  ontouchend={handleTouchEnd}
+  role="main"
+>
   <div
     class="reader-header"
     class:hidden={!headerVisible}
@@ -345,9 +379,7 @@
     <div
       class="reader-container"
       bind:this={readerContainer}
-      ontouchstart={handleTouchStart}
-      ontouchend={handleTouchEnd}
-      role="main"
+      role="region"
       aria-label="Book reader"
     ></div>
     {#if totalLocations > 0}
@@ -374,6 +406,8 @@
     display: flex;
     flex-direction: column;
     z-index: 1000;
+    overscroll-behavior: none;
+    touch-action: pan-x pan-y;
   }
 
   .reader-header {
@@ -440,6 +474,7 @@
     width: 100%;
     padding: 2rem;
     padding-top: 4rem;
+    overscroll-behavior: contain;
   }
 
   .loading,
