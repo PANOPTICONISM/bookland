@@ -24,7 +24,9 @@
 
   async function handleFileSelect(event) {
     const files = event.target.files || event.dataTransfer?.files;
-    if (!files || files.length === 0) {return};
+    if (!files || files.length === 0) {
+      return;
+    };
 
     const file = files[0];
     const filename = file.name.toLowerCase();
@@ -123,27 +125,31 @@
         <button
           type="button"
           class="book-card"
-          onclick={() => onOpenBook(book.id)}
-        >
-          {#if book.coverPath}
-            <img src="/api/books/{book.id}/cover" alt={book.title} />
-          {:else}
-            <div class="no-cover">
-              <svg
-                width="48"
-                height="48"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                <path
-                  d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
-                />
-              </svg>
-            </div>
-          {/if}
+          onclick={() => onOpenBook(book.id)}>
+          <div class="cover-container">
+            {#if book.coverPath}
+              <img src="/api/books/{book.id}/cover" alt={book.title} />
+            {:else}
+              <div class="no-cover">
+                <svg
+                  width="48"
+                  height="48"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                  <path
+                    d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
+                  />
+                </svg>
+              </div>
+            {/if}
+            <span class="file-type-tag" class:pdf={book.fileType === "pdf"}>
+              {book.fileType?.toUpperCase() || "EPUB"}
+            </span>
+          </div>
           <div class="book-info">
             <h3>{book.title}</h3>
             <p>{book.author}</p>
@@ -253,11 +259,33 @@
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   }
 
+  .cover-container {
+    position: relative;
+  }
+
   .book-card img {
     width: 100%;
     height: 240px;
     object-fit: cover;
     display: block;
+  }
+
+  .file-type-tag {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(102, 126, 234, 0.9);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 3px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .file-type-tag.pdf {
+    background: rgba(229, 62, 62, 0.9);
   }
 
   .no-cover {
