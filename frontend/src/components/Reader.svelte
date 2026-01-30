@@ -23,8 +23,17 @@
   let hideTimeout = null;
   let isFullscreen = $state(false);
 
+  let fontSize = $state(20);
+  const MIN_FONT_SIZE = 12;
+  const MAX_FONT_SIZE = 32;
+
+  // Store reference to EPUB content document for font size updates
+  let epubContentDoc = null;
+
   // Detect touch-only device (no mouse)
-  const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const isTouchDevice =
+    typeof window !== "undefined" &&
+    window.matchMedia("(pointer: coarse)").matches;
 
   // Set up PDF.js worker - use worker from public directory
   pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
@@ -38,9 +47,9 @@
     saveTimeout = setTimeout(async () => {
       try {
         await fetch(`/api/books/${bookId}/progress`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ progress })
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ progress }),
         });
       } catch (err) {
         // Silently fail - don't interrupt reading
@@ -49,6 +58,11 @@
   }
 
   onMount(async () => {
+    const savedFontSize = localStorage.getItem("readerFontSize");
+    if (savedFontSize) {
+      fontSize = parseInt(savedFontSize, 10);
+    }
+
     try {
       // Fetch book metadata first to determine file type
       const metadataResponse = await fetch(`/api/books/${bookId}`);
@@ -90,6 +104,7 @@
         pdfDoc.destroy();
         pdfDoc = null;
       }
+      epubContentDoc = null;
     };
   });
 
@@ -118,7 +133,7 @@
         // Save progress with CFI for precise location
         const cfi = e.detail.cfi;
         if (cfi) {
-          saveProgress(JSON.stringify({ type: 'epub', cfi, fraction }));
+          saveProgress(JSON.stringify({ type: "epub", cfi, fraction }));
         }
       });
 
@@ -126,20 +141,28 @@
         try {
           const doc = e.detail?.doc;
           if (doc && doc.documentElement && doc.head) {
-            const isDark = document.documentElement.classList.contains('dark');
+            // Store reference for later font size updates
+            epubContentDoc = doc;
+
+            const isDark = document.documentElement.classList.contains("dark");
             const style = doc.createElement("style");
+            style.id = "bookland-font-style";
             style.textContent = `
-              p {
-                font-size: 20px;
+              p, div, span, li, td, th {
+                font-size: ${fontSize}px !important;
               }
-              ${isDark ? `
+              ${
+                isDark
+                  ? `
               html, body {
                 color: #e2e8f0 !important;
               }
               a {
                 color: #63b3ed !important;
               }
-              ` : ''}
+              `
+                  : ""
+              }
             `;
             doc.head.appendChild(style);
           }
@@ -164,7 +187,7 @@
           if (bookMetadata.readingProgress) {
             try {
               const progress = JSON.parse(bookMetadata.readingProgress);
-              if (progress.type === 'epub' && progress.cfi) {
+              if (progress.type === "epub" && progress.cfi) {
                 view.goTo(progress.cfi);
                 return;
               }
@@ -205,7 +228,7 @@
       if (bookMetadata.readingProgress) {
         try {
           const progress = JSON.parse(bookMetadata.readingProgress);
-          if (progress.type === 'pdf' && progress.page) {
+          if (progress.type === "pdf" && progress.page) {
             startPage = Math.min(progress.page, totalPages);
           }
         } catch (e) {
@@ -282,7 +305,7 @@
     });
     await textLayer.render();
 
-    saveProgress(JSON.stringify({ type: 'pdf', page: pageNum, totalPages }));
+    saveProgress(JSON.stringify({ type: "pdf", page: pageNum, totalPages }));
   }
 
   function goNext() {
@@ -389,6 +412,33 @@
     }
   }
 
+  function increaseFontSize() {
+    if (fontSize < MAX_FONT_SIZE) {
+      fontSize += 2;
+      localStorage.setItem("readerFontSize", fontSize.toString());
+    }
+  }
+
+  function decreaseFontSize() {
+    if (fontSize > MIN_FONT_SIZE) {
+      fontSize -= 2;
+      localStorage.setItem("readerFontSize", fontSize.toString());
+    }
+  }
+
+  $effect(() => {
+    const currentSize = fontSize;
+    if (epubContentDoc && bookMetadata?.fileType === "epub") {
+      let style = epubContentDoc.getElementById("bookland-font-style");
+      if (style) {
+        style.textContent = style.textContent.replace(
+          /font-size:\s*\d+px/g,
+          `font-size: ${currentSize}px`,
+        );
+      }
+    }
+  });
+
   // Listen for fullscreen changes (e.g., user presses Escape)
   function handleFullscreenChange() {
     isFullscreen = !!document.fullscreenElement;
@@ -427,39 +477,81 @@
       </svg>
       Back to Library
     </button>
-    <button
-      class="fullscreen-btn"
-      onclick={toggleFullscreen}
-      aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-    >
-      {#if isFullscreen}
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path
-            d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"
-          />
-        </svg>
-      {:else}
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path
-            d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
-          />
-        </svg>
+    <div class="header-controls">
+      {#if bookMetadata?.fileType === "epub"}
+        <div class="font-size-controls">
+          <button
+            class="font-btn"
+            onclick={decreaseFontSize}
+            disabled={fontSize <= MIN_FONT_SIZE}
+            aria-label="Decrease font size"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+          <span class="font-size-label">{fontSize}px</span>
+          <button
+            class="font-btn"
+            onclick={increaseFontSize}
+            disabled={fontSize >= MAX_FONT_SIZE}
+            aria-label="Increase font size"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+        </div>
       {/if}
-    </button>
+      <button
+        class="fullscreen-btn"
+        onclick={toggleFullscreen}
+        aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+      >
+        {#if isFullscreen}
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"
+            />
+          </svg>
+        {:else}
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
+            />
+          </svg>
+        {/if}
+      </button>
+    </div>
   </div>
 
   {#if loading}
@@ -475,7 +567,7 @@
   {:else}
     <div
       class="reader-container"
-      class:pdf-mode={bookMetadata?.fileType === 'pdf'}
+      class:pdf-mode={bookMetadata?.fileType === "pdf"}
       bind:this={readerContainer}
       role="region"
       aria-label="Book reader"
@@ -564,6 +656,66 @@
     background: var(--background-color-hover);
   }
 
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .font-size-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: rgba(0, 0, 0, 0.05);
+    padding: 0.25rem;
+    border-radius: 6px;
+  }
+
+  .font-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.35rem;
+    border-radius: 4px;
+    color: #4a5568;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+
+  .font-btn:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  .font-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .font-size-label {
+    font-size: 0.8rem;
+    color: #4a5568;
+    min-width: 40px;
+    text-align: center;
+  }
+
+  :global(.dark) .font-size-controls {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  :global(.dark) .font-btn {
+    color: #e2e8f0;
+  }
+
+  :global(.dark) .font-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  :global(.dark) .font-size-label {
+    color: #e2e8f0;
+  }
+
   .reader-container {
     flex: 1;
     overflow: auto;
@@ -630,7 +782,7 @@
   /* PDF text layer styles for text selection */
   :global(.pdf-text-layer) {
     opacity: 0.2;
-    line-height: 1.0;
+    line-height: 1;
     pointer-events: auto;
   }
 
