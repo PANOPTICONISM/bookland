@@ -3,13 +3,14 @@ services:
     build: .
     container_name: bookland
     ports:
-      - "8080:8080"
+      - "${PORT:-8080}:${PORT:-8080}"
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       - DATA_PATH=/data
       - BOOKS_PATH=/books
       - STATIC_PATH=/app/static
-      - PORT=8080
     volumes:
-      - ./backend/data:/data
-      - ~/Downloads:/books:ro
+      - ./backend/${DATA_PATH}:/data
+      - ${BOOKS_PATH}:/books:ro

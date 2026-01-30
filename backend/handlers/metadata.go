@@ -166,19 +166,12 @@ func ExtractEPUBMetadata(epubPath, coverDir string) (title, author, coverPath st
 		}
 	}
 
-	// Strategy 3: Look for common cover image filenames
 	if coverHref == "" {
-		commonNames := []string{"cover.jpg", "cover.jpeg", "cover.png", "Cover.jpg", "Cover.jpeg", "Cover.png", "COVER.jpg", "COVER.JPG"}
+		commonCovers := map[string]bool{"cover.jpg": true, "cover.jpeg": true, "cover.png": true}
 		for _, f := range reader.File {
-			nameLower := strings.ToLower(filepath.Base(f.Name))
-			for _, cn := range commonNames {
-				if strings.ToLower(cn) == nameLower {
-					coverHref = f.Name
-					opfDir = ""
-					break
-				}
-			}
-			if coverHref != "" {
+			if commonCovers[strings.ToLower(filepath.Base(f.Name))] {
+				coverHref = f.Name
+				opfDir = ""
 				break
 			}
 		}

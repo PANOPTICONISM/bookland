@@ -1,13 +1,11 @@
 package handlers
 
 import (
-	"encoding/json"
-	"log"
-	"net/http"
-	"os"
-	"path/filepath"
 	"bookland/db"
 	"bookland/models"
+	"log"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -34,11 +32,10 @@ func ScanDirectory(booksDir string) ([]models.Book, error) {
 		filePath := filepath.Join(booksDir, filename)
 
 		// Check if it's an EPUB or PDF
-		lowerName := strings.ToLower(filename)
-		isEpub := strings.HasSuffix(lowerName, ".epub")
-		isPdf := strings.HasSuffix(lowerName, ".pdf")
-
-		if !isEpub && !isPdf {
+		supportedTypes := map[string]string{".epub": "epub", ".pdf": "pdf"}
+		ext := strings.ToLower(filepath.Ext(filename))
+		fileType, ok := supportedTypes[ext]
+		if !ok {
 			continue
 		}
 
@@ -66,16 +63,14 @@ func ScanDirectory(booksDir string) ([]models.Book, error) {
 
 		// Extract metadata using shared functions
 		var title, author, coverPath string
-		fileType := "pdf"
 
-		if isEpub {
-			fileType = "epub"
+		if fileType == "epub" {
 			title, author, coverPath = ExtractEPUBMetadata(filePath, coversDir)
 
 			// Rename cover file to use bookID instead of generic "cover"
 			if coverPath != "" {
-				ext := filepath.Ext(coverPath)
-				newCoverPath := filepath.Join(coversDir, bookID+ext)
+				coverExt := filepath.Ext(coverPath)
+				newCoverPath := filepath.Join(coversDir, bookID+coverExt)
 				if err := os.Rename(coverPath, newCoverPath); err != nil {
 					log.Printf("Failed to rename cover: %v", err)
 				} else {
@@ -122,35 +117,4 @@ func ScanDirectory(booksDir string) ([]models.Book, error) {
 	}
 
 	return addedBooks, nil
-}
-
-// ScanBooksDirectory is an HTTP handler that scans the books directory
-func ScanBooksDirectory(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	booksDir := filepath.Join(DataPath, "books")
-
-	// Create books directory if it doesn't exist
-	if err := os.MkdirAll(booksDir, 0755); err != nil {
-		http.Error(w, "Failed to create books directory", http.StatusInternalServerError)
-		return
-	}
-
-	addedBooks, err := ScanDirectory(booksDir)
-	if err != nil {
-		http.Error(w, "Failed to scan directory", http.StatusInternalServerError)
-		return
-	}
-
-	response := map[string]interface{}{
-		"message": "Scan completed",
-		"added":   len(addedBooks),
-		"books":   addedBooks,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
 }

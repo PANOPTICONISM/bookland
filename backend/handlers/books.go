@@ -37,17 +37,10 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	filename := strings.ToLower(header.Filename)
-	var fileType string
-	var fileExt string
-
-	if strings.HasSuffix(filename, ".epub") {
-		fileType = "epub"
-		fileExt = ".epub"
-	} else if strings.HasSuffix(filename, ".pdf") {
-		fileType = "pdf"
-		fileExt = ".pdf"
-	} else {
+	fileExt := strings.ToLower(filepath.Ext(header.Filename))
+	supportedTypes := map[string]string{".epub": "epub", ".pdf": "pdf"}
+	fileType, ok := supportedTypes[fileExt]
+	if !ok {
 		http.Error(w, "Only .epub and .pdf files are supported", http.StatusBadRequest)
 		return
 	}
@@ -66,10 +59,11 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to save file", http.StatusInternalServerError)
 		return
 	}
+	defer dst.Close()
 
 	fileSize, err := io.Copy(dst, file)
-	dst.Close()
 	if err != nil {
+		os.Remove(bookPath)
 		http.Error(w, "Failed to save file", http.StatusInternalServerError)
 		return
 	}
@@ -258,7 +252,9 @@ func DeleteBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if coverPath != "" {
-		os.Remove(coverPath)
+		if err := os.Remove(coverPath); err != nil {
+			log.Printf("Warning: failed to delete cover file %s: %v", coverPath, err)
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -315,8 +311,11 @@ func UploadCover(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to save cover", http.StatusInternalServerError)
 		return
 	}
-	outFile.Write(data)
-	outFile.Close()
+	defer outFile.Close()
+	if _, err := outFile.Write(data); err != nil {
+		http.Error(w, "Failed to write cover", http.StatusInternalServerError)
+		return
+	}
 
 	// Update database
 	_, err = db.DB.Exec("UPDATE books SET cover_path = ? WHERE id = ?", coverPath, bookID)

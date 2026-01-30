@@ -7,11 +7,15 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	godotenv.Load("../.env")
+
 	dataPath := os.Getenv("DATA_PATH")
 	if dataPath == "" {
 		dataPath = "./data"
@@ -53,6 +57,7 @@ func main() {
 	scanBooksOnStartup(booksPath)
 
 	r := mux.NewRouter()
+	r.Use(corsMiddleware)
 
 	api := r.PathPrefix("/api").Subrouter()
 	api.HandleFunc("/books", handlers.GetBooks).Methods("GET")
@@ -72,8 +77,6 @@ func main() {
 		r.PathPrefix("/").Handler(spa)
 	}
 
-	r.Use(corsMiddleware)
-
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -84,13 +87,20 @@ func main() {
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	allowedOrigin := os.Getenv("CORS_ORIGIN")
 
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if allowedOrigin != "" && origin == allowedOrigin {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Max-Age", "86400")
+			w.Header().Set("Vary", "Origin")
+		}
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 
@@ -98,14 +108,18 @@ func corsMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// SPA handler serves static files and falls back to index.html
 type spaHandler struct {
 	staticPath string
 	indexPath  string
 }
 
 func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := filepath.Join(h.staticPath, r.URL.Path)
+	path := filepath.Clean(filepath.Join(h.staticPath, r.URL.Path))
+
+	if !strings.HasPrefix(path, h.staticPath) {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
 
 	// Check if file exists
 	_, err := os.Stat(path)
