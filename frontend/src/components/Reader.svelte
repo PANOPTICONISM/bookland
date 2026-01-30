@@ -216,11 +216,24 @@
     currentLocation = pageNum;
 
     const page = await pdfDoc.getPage(pageNum);
-    const scale = 1.5;
+
+    const containerHeight = window.innerHeight - 80; // Account for header and padding
+    const containerWidth = Math.min(window.innerWidth - 40, 860); // Max width with padding
+    const originalViewport = page.getViewport({ scale: 1 });
+    const scaleHeight = containerHeight / originalViewport.height;
+    const scaleWidth = containerWidth / originalViewport.width;
+    const scale = Math.min(scaleHeight, scaleWidth);
     const viewport = page.getViewport({ scale });
 
     // Clear previous content
     readerContainer.innerHTML = "";
+
+    // Create wrapper for canvas and text layer
+    const wrapper = document.createElement("div");
+    wrapper.style.position = "relative";
+    wrapper.style.width = `${viewport.width}px`;
+    wrapper.style.height = `${viewport.height}px`;
+    wrapper.style.margin = "0 auto";
 
     // Create canvas
     const canvas = document.createElement("canvas");
@@ -228,15 +241,37 @@
     canvas.height = viewport.height;
     canvas.width = viewport.width;
     canvas.style.display = "block";
-    canvas.style.margin = "0 auto";
 
-    readerContainer.appendChild(canvas);
+    wrapper.appendChild(canvas);
+
+    // Create text layer for selection
+    const textLayerDiv = document.createElement("div");
+    textLayerDiv.className = "pdf-text-layer";
+    textLayerDiv.style.position = "absolute";
+    textLayerDiv.style.left = "0";
+    textLayerDiv.style.top = "0";
+    textLayerDiv.style.right = "0";
+    textLayerDiv.style.bottom = "0";
+    textLayerDiv.style.overflow = "hidden";
+    textLayerDiv.style.lineHeight = "1";
+    wrapper.appendChild(textLayerDiv);
+
+    readerContainer.appendChild(wrapper);
 
     // Render PDF page
     await page.render({
       canvasContext: context,
       viewport: viewport,
     }).promise;
+
+    // Render text layer for selection
+    const textContent = await page.getTextContent();
+    const textLayer = new pdfjsLib.TextLayer({
+      textContentSource: textContent,
+      container: textLayerDiv,
+      viewport: viewport,
+    });
+    await textLayer.render();
 
     saveProgress(JSON.stringify({ type: 'pdf', page: pageNum, totalPages }));
   }
@@ -431,6 +466,7 @@
   {:else}
     <div
       class="reader-container"
+      class:pdf-mode={bookMetadata?.fileType === 'pdf'}
       bind:this={readerContainer}
       role="region"
       aria-label="Book reader"
@@ -581,5 +617,37 @@
       padding: 1rem;
       padding-top: 4rem;
     }
+  }
+
+  /* PDF text layer styles for text selection */
+  :global(.pdf-text-layer) {
+    opacity: 0.2;
+    line-height: 1.0;
+    pointer-events: auto;
+  }
+
+  :global(.pdf-text-layer > span) {
+    color: transparent;
+    position: absolute;
+    white-space: pre;
+    pointer-events: all;
+    transform-origin: 0 0;
+  }
+
+  :global(.pdf-text-layer ::selection) {
+    background: rgba(66, 153, 225, 0.5);
+  }
+
+  :global(.pdf-text-layer ::-moz-selection) {
+    background: rgba(66, 153, 225, 0.5);
+  }
+
+  /* PDF container should not scroll - content fits viewport */
+  .reader-container.pdf-mode {
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 80px;
   }
 </style>
