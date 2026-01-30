@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"io"
 	"log"
@@ -149,18 +150,47 @@ func GetBook(w http.ResponseWriter, r *http.Request) {
 	bookID := vars["id"]
 
 	var book models.Book
+	var readingProgress sql.NullString
 	err := db.DB.QueryRow(
-		"SELECT id, title, author, cover_path, file_path, file_size, file_type, added_at FROM books WHERE id = ?",
+		"SELECT id, title, author, cover_path, file_path, file_size, file_type, added_at, reading_progress FROM books WHERE id = ?",
 		bookID,
-	).Scan(&book.ID, &book.Title, &book.Author, &book.CoverPath, &book.FilePath, &book.FileSize, &book.FileType, &book.AddedAt)
+	).Scan(&book.ID, &book.Title, &book.Author, &book.CoverPath, &book.FilePath, &book.FileSize, &book.FileType, &book.AddedAt, &readingProgress)
 
 	if err != nil {
 		http.Error(w, "Book not found", http.StatusNotFound)
 		return
 	}
 
+	if readingProgress.Valid {
+		book.ReadingProgress = readingProgress.String
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(book)
+}
+
+func SaveProgress(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	bookID := vars["id"]
+
+	var payload struct {
+		Progress string `json:"progress"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+		log.Printf("SaveProgress decode error: %v", err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	_, err := db.DB.Exec("UPDATE books SET reading_progress = ? WHERE id = ?", payload.Progress, bookID)
+	if err != nil {
+		log.Printf("SaveProgress DB error for book %s: %v", bookID, err)
+		http.Error(w, "Failed to save progress", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 func ServeBookFile(w http.ResponseWriter, r *http.Request) {

@@ -61,6 +61,7 @@ func main() {
 	api.HandleFunc("/books/{id}/file", handlers.ServeBookFile).Methods("GET")
 	api.HandleFunc("/books/{id}/cover", handlers.ServeCover).Methods("GET")
 	api.HandleFunc("/books/{id}/cover", handlers.UploadCover).Methods("POST")
+	api.HandleFunc("/books/{id}/progress", handlers.SaveProgress).Methods("PUT")
 
 	// Serve static frontend files in production
 	staticPath := os.Getenv("STATIC_PATH")

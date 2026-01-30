@@ -12,10 +12,14 @@ var DB *sql.DB
 
 func InitDB(dataPath string) error {
 	var err error
-	DB, err = sql.Open("sqlite", dataPath+"/books.db")
+	// Enable WAL mode and set busy timeout for better concurrency
+	DB, err = sql.Open("sqlite", dataPath+"/books.db?_journal_mode=WAL&_busy_timeout=5000")
 	if err != nil {
 		return err
 	}
+
+	// Limit connections to avoid lock contention
+	DB.SetMaxOpenConns(1)
 
 	createTableSQL := `
 	CREATE TABLE IF NOT EXISTS books (
@@ -38,7 +42,13 @@ func InitDB(dataPath string) error {
 
 	// Migration: Add file_type column if it doesn't exist
 	_, err = DB.Exec(`ALTER TABLE books ADD COLUMN file_type TEXT DEFAULT 'epub'`)
-	if err != nil && !strings.Contains(err.Error(), "duplicate column") {
+	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
+		log.Printf("Migration warning: %v", err)
+	}
+
+	// Migration: Add reading_progress column if it doesn't exist
+	_, err = DB.Exec(`ALTER TABLE books ADD COLUMN reading_progress TEXT`)
+	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "duplicate column") {
 		log.Printf("Migration warning: %v", err)
 	}
 

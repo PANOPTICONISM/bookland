@@ -29,6 +29,25 @@
   // Set up PDF.js worker - use worker from public directory
   pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
+  // Save reading progress to backend (debounced)
+  let saveTimeout = null;
+  function saveProgress(progress) {
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+    }
+    saveTimeout = setTimeout(async () => {
+      try {
+        await fetch(`/api/books/${bookId}/progress`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ progress })
+        });
+      } catch (err) {
+        // Silently fail - don't interrupt reading
+      }
+    }, 1000); // Wait 1 second after last change before saving
+  }
+
   onMount(async () => {
     try {
       // Fetch book metadata first to determine file type
@@ -55,6 +74,9 @@
     return () => {
       if (hideTimeout) {
         clearTimeout(hideTimeout);
+      }
+      if (saveTimeout) {
+        clearTimeout(saveTimeout);
       }
       if (view) {
         try {
@@ -93,6 +115,11 @@
           currentLocation = Math.round(fraction * 100);
           totalLocations = 100;
         }
+        // Save progress with CFI for precise location
+        const cfi = e.detail.cfi;
+        if (cfi) {
+          saveProgress(JSON.stringify({ type: 'epub', cfi, fraction }));
+        }
       });
 
       view.addEventListener("load", (e) => {
@@ -121,10 +148,21 @@
         type: "application/epub+zip",
       });
 
-      // Open the book and navigate to the start
+      // Open the book and restore saved progress or start from beginning
       view
         .open(file)
         .then(() => {
+          if (bookMetadata.readingProgress) {
+            try {
+              const progress = JSON.parse(bookMetadata.readingProgress);
+              if (progress.type === 'epub' && progress.cfi) {
+                view.goTo(progress.cfi);
+                return;
+              }
+            } catch (e) {
+              // Invalid progress data, start from beginning
+            }
+          }
           view.goTo(0);
         })
         .catch((err) => {
@@ -152,7 +190,20 @@
       pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       totalPages = pdfDoc.numPages;
       totalLocations = totalPages;
-      await renderPDFPage(1);
+
+      // Restore saved progress or start from page 1
+      let startPage = 1;
+      if (bookMetadata.readingProgress) {
+        try {
+          const progress = JSON.parse(bookMetadata.readingProgress);
+          if (progress.type === 'pdf' && progress.page) {
+            startPage = Math.min(progress.page, totalPages);
+          }
+        } catch (e) {
+          // Invalid progress data
+        }
+      }
+      await renderPDFPage(startPage);
     } catch (err) {
       error = "Failed to load PDF: " + err.message;
     }
@@ -186,6 +237,8 @@
       canvasContext: context,
       viewport: viewport,
     }).promise;
+
+    saveProgress(JSON.stringify({ type: 'pdf', page: pageNum, totalPages }));
   }
 
   function goNext() {
