@@ -20,11 +20,6 @@ import (
 var DataPath string
 
 func UploadBook(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	err := r.ParseMultipartForm(100 << 20) // 100MB max
 	if err != nil {
 		http.Error(w, "File too large", http.StatusBadRequest)
@@ -249,8 +244,8 @@ func DeleteBook(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	bookID := vars["id"]
 
-	var filePath, coverPath string
-	err := db.DB.QueryRow("SELECT file_path, cover_path FROM books WHERE id = ?", bookID).Scan(&filePath, &coverPath)
+	var coverPath string
+	err := db.DB.QueryRow("SELECT cover_path FROM books WHERE id = ?", bookID).Scan(&coverPath)
 	if err != nil {
 		http.Error(w, "Book not found", http.StatusNotFound)
 		return

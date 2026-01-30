@@ -18,8 +18,8 @@ func InitDB(dataPath string) error {
 		return err
 	}
 
-	// Limit connections to avoid lock contention
-	DB.SetMaxOpenConns(1)
+	DB.SetMaxOpenConns(10)
+	DB.SetMaxIdleConns(5)
 
 	createTableSQL := `
 	CREATE TABLE IF NOT EXISTS books (
@@ -27,12 +27,13 @@ func InitDB(dataPath string) error {
 		title TEXT NOT NULL,
 		author TEXT,
 		cover_path TEXT,
-		file_path TEXT NOT NULL,
+		file_path TEXT NOT NULL UNIQUE,
 		file_size INTEGER,
 		file_type TEXT DEFAULT 'epub',
 		added_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 	CREATE INDEX IF NOT EXISTS idx_added_at ON books(added_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_file_path ON books(file_path);
 	`
 
 	_, err = DB.Exec(createTableSQL)

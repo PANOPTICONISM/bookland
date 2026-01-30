@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"archive/zip"
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -9,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // ExtractEPUBMetadata extracts title, author, and cover from an EPUB file.
@@ -33,8 +35,11 @@ func ExtractEPUBMetadata(epubPath, coverDir string) (title, author, coverPath st
 			if err != nil {
 				continue
 			}
-			data, _ := io.ReadAll(rc)
+			data, err := io.ReadAll(rc)
 			rc.Close()
+			if err != nil {
+				continue
+			}
 			containerXML = string(data)
 			break
 		}
@@ -59,8 +64,11 @@ func ExtractEPUBMetadata(epubPath, coverDir string) (title, author, coverPath st
 			if err != nil {
 				continue
 			}
-			data, _ := io.ReadAll(rc)
+			data, err := io.ReadAll(rc)
 			rc.Close()
+			if err != nil {
+				continue
+			}
 			opfXML = string(data)
 			break
 		}
@@ -285,8 +293,11 @@ func ExtractPDFCover(pdfPath, coverDir, bookID string) string {
 	outputBase := filepath.Join(coverDir, bookID)
 	coverPath := outputBase + "-001.jpg"
 
-	// Use pdftoppm to render first page as JPEG
-	cmd := exec.Command("pdftoppm",
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx,
+		"pdftoppm",
 		"-jpeg",
 		"-f", "1",
 		"-l", "1",
@@ -296,7 +307,11 @@ func ExtractPDFCover(pdfPath, coverDir, bookID string) string {
 	)
 
 	if err := cmd.Run(); err != nil {
-		log.Printf("Failed to extract PDF cover with pdftoppm: %v", err)
+		if ctx.Err() == context.DeadlineExceeded {
+			log.Printf("PDF cover extraction timed out for: %s", pdfPath)
+		} else {
+			log.Printf("Failed to extract PDF cover with pdftoppm: %v", err)
+		}
 		return ""
 	}
 
