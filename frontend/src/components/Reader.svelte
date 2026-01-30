@@ -154,7 +154,7 @@
               ${
                 isDark
                   ? `
-              html, body {
+              * {
                 color: #e2e8f0 !important;
               }
               a {
