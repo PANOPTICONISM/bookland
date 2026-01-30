@@ -1,12 +1,12 @@
 package main
 
 import (
+	"bookland/db"
+	"bookland/handlers"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"bookland/db"
-	"bookland/handlers"
 
 	"github.com/gorilla/mux"
 )
@@ -62,6 +62,7 @@ func main() {
 	api.HandleFunc("/books/{id}/cover", handlers.ServeCover).Methods("GET")
 	api.HandleFunc("/books/{id}/cover", handlers.UploadCover).Methods("POST")
 	api.HandleFunc("/books/{id}/progress", handlers.SaveProgress).Methods("PUT")
+	api.HandleFunc("/books/{id}", handlers.DeleteBook).Methods("DELETE")
 
 	// Serve static frontend files in production
 	staticPath := os.Getenv("STATIC_PATH")

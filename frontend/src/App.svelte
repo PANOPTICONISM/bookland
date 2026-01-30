@@ -1,49 +1,49 @@
 <script>
-  import { onMount } from 'svelte';
-  import Library from './components/Library.svelte';
-  import Reader from './components/Reader.svelte';
+  import { onMount } from "svelte";
+  import Library from "./components/Library.svelte";
+  import Reader from "./components/Reader.svelte";
 
-  let currentView = $state('library');
+  let currentView = $state("library");
   let selectedBookId = $state(null);
 
   onMount(() => {
     updateFromURL();
 
-    window.addEventListener('popstate', updateFromURL);
+    window.addEventListener("popstate", updateFromURL);
 
     return () => {
-      window.removeEventListener('popstate', updateFromURL);
+      window.removeEventListener("popstate", updateFromURL);
     };
   });
 
-  function updateFromURL() {
+  const updateFromURL = () => {
     const path = window.location.pathname;
     const match = path.match(/^\/book\/([^\/]+)$/);
 
     if (match) {
       selectedBookId = match[1];
-      currentView = 'reader';
+      currentView = "reader";
     } else {
-      currentView = 'library';
+      currentView = "library";
       selectedBookId = null;
     }
-  }
+  };
 
-  function openBook(bookId) {
+  const openBook = (bookId) => {
     selectedBookId = bookId;
-    currentView = 'reader';
-    window.history.pushState({}, '', `/book/${bookId}`);
-  }
+    currentView = "reader";
+    window.history.pushState({}, "", `/book/${bookId}`);
+  };
 
-  function closeReader() {
-    currentView = 'library';
+  const closeReader = () => {
+    currentView = "library";
     selectedBookId = null;
-    window.history.pushState({}, '', '/');
-  }
+    window.history.pushState({}, "", "/");
+  };
 </script>
 
-{#if currentView === 'library'}
+{#if currentView === "library"}
   <Library onOpenBook={openBook} />
-{:else if currentView === 'reader'}
+{:else if currentView === "reader"}
   <Reader bookId={selectedBookId} onClose={closeReader} />
 {/if}

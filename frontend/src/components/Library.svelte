@@ -14,17 +14,17 @@
     await fetchBooks();
   });
 
-  function toggleDarkMode() {
+  const toggleDarkMode = () => {
     darkMode = !darkMode;
     localStorage.setItem("darkMode", darkMode);
     applyDarkMode(darkMode);
-  }
+  };
 
-  function applyDarkMode(enabled) {
+  const applyDarkMode = (enabled) => {
     document.documentElement.classList.toggle("dark", enabled);
-  }
+  };
 
-  async function fetchBooks() {
+  const fetchBooks = async () => {
     try {
       const response = await fetch("/api/books");
       const data = await response.json();
@@ -33,9 +33,9 @@
       console.error("Failed to fetch books:", error);
       books = [];
     }
-  }
+  };
 
-  async function handleFileSelect(event) {
+  const handleFileSelect = async (event) => {
     const files = event.target.files || event.dataTransfer?.files;
     if (!files || files.length === 0) {
       return;
@@ -49,9 +49,9 @@
     }
 
     await uploadBook(file);
-  }
+  };
 
-  async function uploadBook(file) {
+  const uploadBook = async (file) => {
     uploading = true;
     const formData = new FormData();
     formData.append("book", file);
@@ -73,24 +73,24 @@
     } finally {
       uploading = false;
     }
-  }
+  };
 
-  function handleDragOver(event) {
+  const handleDragOver = (event) => {
     event.preventDefault();
     dragOver = true;
-  }
+  };
 
-  function handleDragLeave() {
+  const handleDragLeave = () => {
     dragOver = false;
-  }
+  };
 
-  function handleDrop(event) {
+  const handleDrop = (event) => {
     event.preventDefault();
     dragOver = false;
     handleFileSelect(event);
-  }
+  };
 
-  function getReadingProgress(book) {
+  const getReadingProgress = (book) => {
     if (!book.readingProgress) return 0;
     try {
       const progress = JSON.parse(book.readingProgress);
@@ -107,7 +107,29 @@
       return 0;
     }
     return 0;
-  }
+  };
+
+  const deleteBook = async (event, bookId, bookTitle) => {
+    event.stopPropagation();
+    if (!confirm(`Delete "${bookTitle}"?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/books/${bookId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        books = books.filter((b) => b.id !== bookId);
+      } else {
+        alert("Failed to delete book");
+      }
+    } catch (error) {
+      console.error("Delete error:", error);
+      alert("Failed to delete book");
+    }
+  };
 </script>
 
 <div class="container">
@@ -191,48 +213,69 @@
   {#if books.length > 0}
     <div class="books-grid">
       {#each books as book (book.id)}
-        <button
-          type="button"
-          class="book-card"
-          onclick={() => onOpenBook(book.id)}
-        >
-          <div class="cover-container">
-            {#if book.coverPath}
-              <img src="/api/books/{book.id}/cover" alt={book.title} />
-            {:else}
-              <div class="no-cover">
-                <svg
-                  width="48"
-                  height="48"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                >
-                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                  <path
-                    d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
-                  />
-                </svg>
-              </div>
-            {/if}
-            <span class="file-type-tag" class:pdf={book.fileType === "pdf"}>
-              {book.fileType?.toUpperCase() || "EPUB"}
-            </span>
-            {#if getReadingProgress(book) > 0}
-              <div class="progress-indicator">
-                <div
-                  class="progress-fill"
-                  style="width: {getReadingProgress(book)}%"
-                ></div>
-              </div>
-            {/if}
-          </div>
-          <div class="book-info">
-            <h3>{book.title}</h3>
-            <p>{book.author}</p>
-          </div>
-        </button>
+        <div class="book-card">
+          <button
+            type="button"
+            class="book-card-main"
+            onclick={() => onOpenBook(book.id)}
+          >
+            <div class="cover-container">
+              {#if book.coverPath}
+                <img src="/api/books/{book.id}/cover" alt={book.title} />
+              {:else}
+                <div class="no-cover">
+                  <svg
+                    width="48"
+                    height="48"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                  >
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                    <path
+                      d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
+                    />
+                  </svg>
+                </div>
+              {/if}
+              <span class="file-type-tag" class:pdf={book.fileType === "pdf"}>
+                {book.fileType?.toUpperCase() || "EPUB"}
+              </span>
+              {#if getReadingProgress(book) > 0}
+                <div class="progress-indicator">
+                  <div
+                    class="progress-fill"
+                    style="width: {getReadingProgress(book)}%"
+                  ></div>
+                </div>
+              {/if}
+            </div>
+            <div class="book-info">
+              <h3>{book.title}</h3>
+              <p>{book.author}</p>
+            </div>
+          </button>
+          <button
+            type="button"
+            class="delete-btn"
+            onclick={(e) => deleteBook(e, book.id, book.title)}
+            aria-label="Delete book"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+              />
+            </svg>
+          </button>
+        </div>
       {/each}
     </div>
   {:else}
@@ -351,7 +394,7 @@
   }
 
   .book-card {
-    cursor: pointer;
+    position: relative;
     border-radius: 8px;
     overflow: hidden;
     background: white;
@@ -359,13 +402,45 @@
     transition:
       transform 0.2s,
       box-shadow 0.2s;
-    border: none;
-    padding: 0;
   }
 
   .book-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  }
+
+  .book-card-main {
+    cursor: pointer;
+    border: none;
+    padding: 0;
+    background: none;
+    width: 100%;
+    text-align: left;
+  }
+
+  .delete-btn {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: rgba(220, 38, 38, 0.9);
+    border: none;
+    border-radius: 4px;
+    padding: 6px;
+    cursor: pointer;
+    color: white;
+    opacity: 0;
+    transition: opacity 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .book-card:hover .delete-btn {
+    opacity: 1;
+  }
+
+  .delete-btn:hover {
+    background: rgba(185, 28, 28, 1);
   }
 
   .cover-container {

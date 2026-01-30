@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"bookland/db"
+	"bookland/models"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -8,8 +10,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"bookland/db"
-	"bookland/models"
 	"strings"
 	"time"
 
@@ -243,6 +243,31 @@ func ServeCover(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.ServeFile(w, r, coverPath)
+}
+
+func DeleteBook(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	bookID := vars["id"]
+
+	var filePath, coverPath string
+	err := db.DB.QueryRow("SELECT file_path, cover_path FROM books WHERE id = ?", bookID).Scan(&filePath, &coverPath)
+	if err != nil {
+		http.Error(w, "Book not found", http.StatusNotFound)
+		return
+	}
+
+	_, err = db.DB.Exec("DELETE FROM books WHERE id = ?", bookID)
+	if err != nil {
+		http.Error(w, "Failed to delete book", http.StatusInternalServerError)
+		return
+	}
+
+	if coverPath != "" {
+		os.Remove(coverPath)
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 }
 
 func UploadCover(w http.ResponseWriter, r *http.Request) {

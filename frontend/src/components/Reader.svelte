@@ -40,7 +40,7 @@
 
   // Save reading progress to backend (debounced)
   let saveTimeout = null;
-  function saveProgress(progress) {
+  const saveProgress = (progress) => {
     if (saveTimeout) {
       clearTimeout(saveTimeout);
     }
@@ -55,7 +55,7 @@
         // Silently fail - don't interrupt reading
       }
     }, 1000); // Wait 1 second after last change before saving
-  }
+  };
 
   onMount(async () => {
     const savedFontSize = localStorage.getItem("readerFontSize");
@@ -216,7 +216,7 @@
     }
   });
 
-  async function loadPDF() {
+  const loadPDF = async () => {
     try {
       const arrayBuffer = await bookBlob.arrayBuffer();
       pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -239,9 +239,9 @@
     } catch (err) {
       error = "Failed to load PDF: " + err.message;
     }
-  }
+  };
 
-  async function renderPDFPage(pageNum) {
+  const renderPDFPage = async (pageNum) => {
     if (!pdfDoc || !readerContainer) return;
 
     currentPage = pageNum;
@@ -306,9 +306,9 @@
     await textLayer.render();
 
     saveProgress(JSON.stringify({ type: "pdf", page: pageNum, totalPages }));
-  }
+  };
 
-  function goNext() {
+  const goNext = () => {
     if (bookMetadata?.fileType === "epub") {
       view?.next();
     } else if (bookMetadata?.fileType === "pdf") {
@@ -316,9 +316,9 @@
         renderPDFPage(currentPage + 1);
       }
     }
-  }
+  };
 
-  function goPrev() {
+  const goPrev = () => {
     if (bookMetadata?.fileType === "epub") {
       view?.prev();
     } else if (bookMetadata?.fileType === "pdf") {
@@ -326,12 +326,12 @@
         renderPDFPage(currentPage - 1);
       }
     }
-  }
+  };
 
   let touchStartX = 0;
   let touchStartY = 0;
 
-  function handleKeyPress(event) {
+  const handleKeyPress = (event) => {
     if (event.key === "ArrowRight") {
       goNext();
     } else if (event.key === "ArrowLeft") {
@@ -339,15 +339,15 @@
     } else if (event.key === "Escape") {
       onClose();
     }
-  }
+  };
 
   // All touch handling on wrapper for full-screen coverage
-  function handleTouchStart(event) {
+  const handleTouchStart = (event) => {
     touchStartX = event.touches[0].clientX;
     touchStartY = event.touches[0].clientY;
-  }
+  };
 
-  function handleTouchEnd(event) {
+  const handleTouchEnd = (event) => {
     const touchEndX = event.changedTouches[0].clientX;
     const touchEndY = event.changedTouches[0].clientY;
     const diffX = touchStartX - touchEndX;
@@ -374,35 +374,35 @@
         goPrev();
       }
     }
-  }
+  };
 
-  function startHideTimer() {
+  const startHideTimer = () => {
     if (hideTimeout) {
       clearTimeout(hideTimeout);
     }
     hideTimeout = setTimeout(() => {
       headerVisible = false;
     }, 3000);
-  }
+  };
 
-  function handleHeaderMouseEnter() {
+  const handleHeaderMouseEnter = () => {
     if (isTouchDevice) return;
     headerVisible = true;
-  }
+  };
 
-  function handleHeaderMouseLeave() {
+  const handleHeaderMouseLeave = () => {
     if (isTouchDevice) return;
     headerVisible = false;
-  }
+  };
 
-  function handleMouseMove(event) {
+  const handleMouseMove = (event) => {
     if (isTouchDevice) return;
     if (event.clientY < 60 && !headerVisible) {
       headerVisible = true;
     }
-  }
+  };
 
-  function toggleFullscreen() {
+  const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen();
       isFullscreen = true;
@@ -410,26 +410,26 @@
       document.exitFullscreen();
       isFullscreen = false;
     }
-  }
+  };
 
-  function increaseFontSize() {
+  const increaseFontSize = () => {
     if (fontSize < MAX_FONT_SIZE) {
       fontSize += 2;
       localStorage.setItem("readerFontSize", fontSize.toString());
     }
-  }
+  };
 
-  function decreaseFontSize() {
+  const decreaseFontSize = () => {
     if (fontSize > MIN_FONT_SIZE) {
       fontSize -= 2;
       localStorage.setItem("readerFontSize", fontSize.toString());
     }
-  }
+  };
 
   $effect(() => {
     const currentSize = fontSize;
     if (epubContentDoc && bookMetadata?.fileType === "epub") {
-      let style = epubContentDoc.getElementById("bookland-font-style");
+      const style = epubContentDoc.getElementById("bookland-font-style");
       if (style) {
         style.textContent = style.textContent.replace(
           /font-size:\s*\d+px/g,
@@ -440,9 +440,9 @@
   });
 
   // Listen for fullscreen changes (e.g., user presses Escape)
-  function handleFullscreenChange() {
+  const handleFullscreenChange = () => {
     isFullscreen = !!document.fullscreenElement;
-  }
+  };
 </script>
 
 <svelte:window
