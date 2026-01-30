@@ -1,4 +1,4 @@
-module reading
+module bookland
 
 go 1.23.0
 

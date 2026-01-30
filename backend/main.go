@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"reading/db"
-	"reading/handlers"
+	"bookland/db"
+	"bookland/handlers"
 
 	"github.com/gorilla/mux"
 )

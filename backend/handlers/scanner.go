@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"reading/db"
-	"reading/models"
+	"bookland/db"
+	"bookland/models"
 	"strings"
 	"time"
 

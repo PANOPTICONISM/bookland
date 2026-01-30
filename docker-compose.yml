@@ -4,16 +4,12 @@ services:
     container_name: bookland
     ports:
       - "8080:8080"
+    restart: unless-stopped
     environment:
       - DATA_PATH=/data
       - BOOKS_PATH=/books
       - STATIC_PATH=/app/static
       - PORT=8080
     volumes:
-      - book-data:/data
-      - /path/to/books:/books:ro
-    restart: unless-stopped
-
-volumes:
-  book-data:
-    driver: local
+      - ./backend/data:/data
+      - ~/Downloads:/books:ro
