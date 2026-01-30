@@ -294,7 +294,7 @@
 
   .empty-state {
     text-align: center;
-    padding: 4rem 2rem;
+    padding: 2rem;
     color: #a0aec0;
   }
 

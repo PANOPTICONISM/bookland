@@ -217,8 +217,8 @@
 
     const page = await pdfDoc.getPage(pageNum);
 
-    const containerHeight = window.innerHeight - 80; // Account for header and padding
-    const containerWidth = Math.min(window.innerWidth - 40, 860); // Max width with padding
+    const containerHeight = window.innerHeight;
+    const containerWidth = Math.min(window.innerWidth, 900);
     const originalViewport = page.getViewport({ scale: 1 });
     const scaleHeight = containerHeight / originalViewport.height;
     const scaleWidth = containerWidth / originalViewport.width;
@@ -508,7 +508,8 @@
     justify-content: space-between;
     align-items: center;
     padding: 1rem 2rem;
-    background: var(--background-color);
+    background: rgba(245, 241, 232, 0.95);
+    backdrop-filter: blur(8px);
     border-bottom: 1px solid #e2e8f0;
     z-index: 1001;
     transform: translateY(0);
@@ -562,7 +563,6 @@
     margin: 0 auto;
     width: 100%;
     padding: 2rem;
-    padding-top: 4rem;
     overscroll-behavior: contain;
   }
 
@@ -615,7 +615,6 @@
   @media (max-width: 768px) {
     .reader-container {
       padding: 1rem;
-      padding-top: 4rem;
     }
   }
 
@@ -648,6 +647,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding-top: 80px;
+    padding: 0;
   }
 </style>
