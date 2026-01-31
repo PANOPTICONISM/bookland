@@ -12,5 +12,5 @@ services:
       - BOOKS_PATH=/books
       - STATIC_PATH=/app/static
     volumes:
-      - ./backend/${DATA_PATH}:/data
+      - ./data:/data
       - ${BOOKS_PATH}:/books:ro

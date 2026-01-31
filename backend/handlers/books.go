@@ -55,15 +55,15 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	bookID := uuid.New().String()
-	bookDir := filepath.Join(DataPath, "books", bookID)
-	err = os.MkdirAll(bookDir, 0755)
+	storageDir := filepath.Join(DataPath, "books", bookID)
+	err = os.MkdirAll(storageDir, 0755)
 	if err != nil {
 		http.Error(w, "Failed to create book directory", http.StatusInternalServerError)
 		return
 	}
 
-	bookPath := filepath.Join(bookDir, "book"+fileExt)
-	dst, err := os.Create(bookPath)
+	filePath := filepath.Join(storageDir, "book"+fileExt)
+	dst, err := os.Create(filePath)
 	if err != nil {
 		http.Error(w, "Failed to save file", http.StatusInternalServerError)
 		return
@@ -72,7 +72,7 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 
 	fileSize, err := io.Copy(dst, file)
 	if err != nil {
-		os.Remove(bookPath)
+		os.Remove(filePath)
 		http.Error(w, "Failed to save file", http.StatusInternalServerError)
 		return
 	}
@@ -84,10 +84,10 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 	coversDir := filepath.Join(DataPath, "covers")
 	switch fileType {
 	case "epub":
-		title, author, coverPath = ExtractEPUBMetadata(bookPath, bookDir)
+		title, author, coverPath = ExtractEPUBMetadata(filePath, storageDir)
 	case "pdf":
-		title, author = ExtractPDFMetadata(bookPath, originalName)
-		coverPath = ExtractPDFCover(bookPath, coversDir, bookID)
+		title, author = ExtractPDFMetadata(filePath, originalName)
+		coverPath = ExtractPDFCover(filePath, coversDir, bookID)
 	default:
 		// For mobi, fb2, cbz - use filename as title
 		title = originalName
@@ -104,7 +104,7 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 		Title:     title,
 		Author:    author,
 		CoverPath: coverPath,
-		FilePath:  bookPath,
+		FilePath:  filePath,
 		FileSize:  fileSize,
 		FileType:  fileType,
 		AddedAt:   time.Now(),

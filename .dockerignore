@@ -1,5 +1,6 @@
 # Backend
-backend/data
+backend/data/
+data/
 backend/*.db
 
 # Frontend

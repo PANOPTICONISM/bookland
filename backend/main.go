@@ -95,11 +95,14 @@ func main() {
 func securityMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Security-Policy",
-			"default-src 'self'; "+
+			"default-src 'self' blob:; "+
 				"script-src 'self'; "+
-				"style-src 'self' 'unsafe-inline'; "+
+				"style-src 'self' blob: 'unsafe-inline'; "+
 				"img-src 'self' blob: data:; "+
-				"frame-src blob:")
+				"connect-src 'self' blob: data:; "+
+				"frame-src blob: data:; "+
+				"object-src blob: data:; "+
+				"form-action 'none'")
 		next.ServeHTTP(w, r)
 	})
 }
