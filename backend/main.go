@@ -57,6 +57,7 @@ func main() {
 	scanBooksOnStartup(booksPath)
 
 	r := mux.NewRouter()
+	r.Use(securityMiddleware)
 	r.Use(corsMiddleware)
 
 	api := r.PathPrefix("/api").Subrouter()
@@ -84,6 +85,18 @@ func main() {
 
 	log.Printf("Server starting on port %s", port)
 	log.Fatal(http.ListenAndServe(":"+port, r))
+}
+
+func securityMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self'; "+
+				"script-src 'self'; "+
+				"style-src 'self' 'unsafe-inline'; "+
+				"img-src 'self' blob: data:; "+
+				"frame-src blob:")
+		next.ServeHTTP(w, r)
+	})
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
