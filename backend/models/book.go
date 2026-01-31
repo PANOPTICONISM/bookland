@@ -13,3 +13,13 @@ type Book struct {
 	AddedAt         time.Time `json:"addedAt"`
 	ReadingProgress string    `json:"readingProgress,omitempty"`
 }
+
+type Annotation struct {
+	ID        string    `json:"id"`
+	BookID    string    `json:"bookId"`
+	CFI       string    `json:"cfi"`
+	Text      string    `json:"text"`
+	Note      string    `json:"note,omitempty"`
+	Color     string    `json:"color"`
+	CreatedAt time.Time `json:"createdAt"`
+}

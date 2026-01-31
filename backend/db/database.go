@@ -53,6 +53,23 @@ func InitDB(dataPath string) error {
 		log.Printf("Migration warning: %v", err)
 	}
 
+	_, err = DB.Exec(`
+		CREATE TABLE IF NOT EXISTS annotations (
+			id TEXT PRIMARY KEY,
+			book_id TEXT NOT NULL,
+			cfi TEXT NOT NULL,
+			text TEXT NOT NULL,
+			note TEXT,
+			color TEXT DEFAULT 'yellow',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
+		);
+		CREATE INDEX IF NOT EXISTS idx_annotations_book ON annotations(book_id);
+	`)
+	if err != nil {
+		log.Printf("Annotations table warning: %v", err)
+	}
+
 	log.Println("Database initialized successfully")
 	return nil
 }

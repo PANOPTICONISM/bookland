@@ -70,6 +70,11 @@ func main() {
 	api.HandleFunc("/books/{id}/progress", handlers.SaveProgress).Methods("PUT")
 	api.HandleFunc("/books/{id}", handlers.DeleteBook).Methods("DELETE")
 
+	api.HandleFunc("/books/{id}/annotations", handlers.GetAnnotations).Methods("GET")
+	api.HandleFunc("/books/{id}/annotations", handlers.CreateAnnotation).Methods("POST")
+	api.HandleFunc("/books/{id}/annotations/{annotationId}", handlers.UpdateAnnotation).Methods("PUT")
+	api.HandleFunc("/books/{id}/annotations/{annotationId}", handlers.DeleteAnnotation).Methods("DELETE")
+
 	// Serve static frontend files in production
 	staticPath := os.Getenv("STATIC_PATH")
 	if staticPath != "" {

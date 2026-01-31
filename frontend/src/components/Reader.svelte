@@ -1,6 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import "foliate-js/view.js";
+  import { Overlayer } from "foliate-js/overlayer.js";
   import * as pdfjsLib from "pdfjs-dist";
 
   let { bookId, onClose } = $props();
@@ -29,6 +30,99 @@
 
   // Store reference to EPUB content document for font size updates
   let epubContentDoc = null;
+
+  // Store annotation colors by CFI for the draw-annotation handler
+  let annotationColors = new Map();
+
+  // Annotations
+  let annotations = $state([]);
+  let showAnnotationPanel = $state(false);
+  let showAnnotationsList = $state(false);
+  let selectedText = $state(null);
+  let selectedCFI = $state(null);
+  let annotationNote = $state("");
+  let annotationColor = $state("yellow");
+  const highlightColors = ["yellow", "green", "blue", "pink", "orange"];
+
+  const fetchAnnotations = async () => {
+    try {
+      const res = await fetch(`/api/books/${bookId}/annotations`);
+      if (res.ok) {
+        annotations = await res.json();
+      }
+    } catch (err) {
+      console.error("Failed to fetch annotations:", err);
+    }
+  };
+
+  const createAnnotation = async () => {
+    if (!selectedText || !selectedCFI) return;
+
+    try {
+      const res = await fetch(`/api/books/${bookId}/annotations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cfi: selectedCFI,
+          text: selectedText,
+          note: annotationNote,
+          color: annotationColor,
+        }),
+      });
+      if (res.ok) {
+        const annotation = await res.json();
+        annotations = [annotation, ...annotations];
+        applyHighlight(annotation);
+        closeAnnotationPanel();
+      }
+    } catch (err) {
+      console.error("Failed to create annotation:", err);
+    }
+  };
+
+  const deleteAnnotation = async (id) => {
+    try {
+      const res = await fetch(`/api/books/${bookId}/annotations/${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        const annotation = annotations.find((a) => a.id === id);
+        annotations = annotations.filter((a) => a.id !== id);
+        if (annotation) removeHighlight(annotation);
+      }
+    } catch (err) {
+      console.error("Failed to delete annotation:", err);
+    }
+  };
+
+  const applyHighlight = (annotation) => {
+    if (!view || !annotation?.cfi) return;
+    // Store color for this CFI so draw-annotation can use it
+    annotationColors.set(annotation.cfi, annotation.color);
+    // Add annotation to foliate-js view
+    view.addAnnotation({ value: annotation.cfi });
+  };
+
+  const removeHighlight = (annotation) => {
+    if (!view || !annotation?.cfi) return;
+    annotationColors.delete(annotation.cfi);
+    view.addAnnotation({ value: annotation.cfi }, true); // true = remove
+  };
+
+  const applyAllAnnotations = () => {
+    if (!view || annotations.length === 0) return;
+    for (const annotation of annotations) {
+      applyHighlight(annotation);
+    }
+  };
+
+  const closeAnnotationPanel = () => {
+    showAnnotationPanel = false;
+    selectedText = null;
+    selectedCFI = null;
+    annotationNote = "";
+    annotationColor = "yellow";
+  };
 
   // Detect touch-only device (no mouse)
   const isTouchDevice =
@@ -71,7 +165,10 @@
       }
       bookMetadata = await metadataResponse.json();
 
-      // Fetch the book file
+      // Fetch annotations first (before book loads)
+      await fetchAnnotations();
+
+      // Then fetch the book file
       const fileResponse = await fetch(`/api/books/${bookId}/file`);
       if (!fileResponse.ok) {
         throw new Error("Failed to load book");
@@ -137,6 +234,7 @@
         if (cfi) {
           saveProgress(JSON.stringify({ type: bookMetadata.fileType, cfi, fraction }));
         }
+        applyAllAnnotations();
       });
 
       view.addEventListener("load", (e) => {
@@ -167,10 +265,37 @@
               }
             `;
             doc.head.appendChild(style);
+
+            doc.addEventListener("mouseup", () => {
+              const selection = doc.getSelection();
+              if (selection && selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                const text = selection.toString().trim();
+                if (text && text.length > 0) {
+                  selectedText = text;
+                  try {
+                    const cfi = view.getCFI(e.detail.index, range);
+                    selectedCFI = cfi || `section-${e.detail.index}`;
+                  } catch {
+                    selectedCFI = `section-${e.detail.index}`;
+                  }
+                  showAnnotationPanel = true;
+                }
+              }
+            });
           }
         } catch (err) {
           // Ignore styling errors
         }
+      });
+
+      // Customize highlight drawing with annotation colors
+      view.addEventListener("draw-annotation", (e) => {
+        const { draw, annotation } = e.detail;
+        const cfi = annotation.value;
+        const color = annotationColors.get(cfi) || "yellow";
+        // Use Overlayer.highlight with the annotation's color
+        draw(Overlayer.highlight, { color });
       });
 
       // Create a File object from the blob with proper filename
@@ -489,6 +614,20 @@
       Back to Library
     </button>
     <div class="header-controls">
+      {#if foliateFormats.includes(bookMetadata?.fileType)}
+        <button
+          class="annotations-btn"
+          onclick={() => showAnnotationsList = !showAnnotationsList}
+          aria-label="View annotations"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+          </svg>
+          {#if annotations.length > 0}
+            <span class="annotation-count">{annotations.length}</span>
+          {/if}
+        </button>
+      {/if}
       {#if ["epub", "mobi", "fb2"].includes(bookMetadata?.fileType)}
         <div class="font-size-controls">
           <button
@@ -588,6 +727,83 @@
         <span>{Math.round((currentLocation / totalLocations) * 100)}%</span>
       </div>
     {/if}
+  {/if}
+
+  {#if showAnnotationPanel}
+    <div class="annotation-panel">
+      <div class="annotation-panel-header">
+        <h3>Add Highlight</h3>
+        <button class="close-panel-btn" onclick={closeAnnotationPanel} aria-label="Close annotation panel">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="selected-text">
+        "{selectedText?.slice(0, 100)}{selectedText?.length > 100 ? '...' : ''}"
+      </div>
+      <div class="color-picker">
+        {#each highlightColors as color}
+          <button
+            class="color-btn"
+            class:selected={annotationColor === color}
+            style="background-color: {color};"
+            onclick={() => annotationColor = color}
+            aria-label="Select {color} highlight"
+          ></button>
+        {/each}
+      </div>
+      <textarea
+        class="annotation-note"
+        bind:value={annotationNote}
+        placeholder="Add a note (optional)..."
+        rows="3"
+      ></textarea>
+      <button class="save-annotation-btn" onclick={createAnnotation}>
+        Save Highlight
+      </button>
+    </div>
+  {/if}
+
+  {#if showAnnotationsList}
+    <div class="annotations-list-panel">
+      <div class="annotation-panel-header">
+        <h3>Highlights ({annotations.length})</h3>
+        <button class="close-panel-btn" onclick={() => showAnnotationsList = false} aria-label="Close annotations list">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="annotations-list">
+        {#if annotations.length === 0}
+          <p class="no-annotations">No highlights yet. Select text in the book to create a highlight.</p>
+        {:else}
+          {#each annotations as annotation (annotation.id)}
+            <div class="annotation-item" style="border-left-color: {annotation.color};">
+              <div class="annotation-text">"{annotation.text.slice(0, 150)}{annotation.text.length > 150 ? '...' : ''}"</div>
+              {#if annotation.note}
+                <div class="annotation-item-note">{annotation.note}</div>
+              {/if}
+              <div class="annotation-actions">
+                <button
+                  class="go-to-btn"
+                  onclick={() => { view?.goTo(annotation.cfi); showAnnotationsList = false; }}
+                >
+                  Go to
+                </button>
+                <button
+                  class="delete-btn"
+                  onclick={() => deleteAnnotation(annotation.id)}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          {/each}
+        {/if}
+      </div>
+    </div>
   {/if}
 </div>
 
@@ -855,5 +1071,332 @@
 
   :global(.dark) .progress-bar {
     color: #a0aec0;
+  }
+
+  .annotation-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid #e2e8f0;
+    padding: 1.5rem;
+    z-index: 1002;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+    animation: slideUp 0.2s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  .annotation-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  .annotation-panel-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #2d3748;
+  }
+
+  .close-panel-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem;
+    color: #718096;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .close-panel-btn:hover {
+    background: #f7fafc;
+    color: #4a5568;
+  }
+
+  .selected-text {
+    font-style: italic;
+    color: #4a5568;
+    padding: 0.75rem;
+    background: #f7fafc;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    max-height: 80px;
+    overflow: hidden;
+  }
+
+  .color-picker {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .color-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.15s;
+  }
+
+  .color-btn:hover {
+    transform: scale(1.1);
+  }
+
+  .color-btn.selected {
+    border-color: #2d3748;
+    transform: scale(1.1);
+  }
+
+  .annotation-note {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    resize: none;
+    margin-bottom: 1rem;
+    font-family: inherit;
+  }
+
+  .annotation-note:focus {
+    outline: none;
+    border-color: #4299e1;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.15);
+  }
+
+  .save-annotation-btn {
+    width: 100%;
+    padding: 0.75rem;
+    background: #4299e1;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.2s;
+  }
+
+  .save-annotation-btn:hover {
+    background: #3182ce;
+  }
+
+  :global(.dark) .annotation-panel {
+    background: #2d3748;
+    border-top-color: #4a5568;
+  }
+
+  :global(.dark) .annotation-panel-header h3 {
+    color: #e2e8f0;
+  }
+
+  :global(.dark) .close-panel-btn {
+    color: #a0aec0;
+  }
+
+  :global(.dark) .close-panel-btn:hover {
+    background: #4a5568;
+    color: #e2e8f0;
+  }
+
+  :global(.dark) .selected-text {
+    background: #1a202c;
+    color: #e2e8f0;
+  }
+
+  :global(.dark) .color-btn.selected {
+    border-color: #e2e8f0;
+  }
+
+  :global(.dark) .annotation-note {
+    background: #1a202c;
+    border-color: #4a5568;
+    color: #e2e8f0;
+  }
+
+  :global(.dark) .annotation-note:focus {
+    border-color: #4299e1;
+  }
+
+  /* Annotations Button */
+  .annotations-btn {
+    position: relative;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 6px;
+    color: #4a5568;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .annotations-btn:hover {
+    background: var(--background-color-hover);
+  }
+
+  .annotation-count {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: #4299e1;
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.1rem 0.35rem;
+    border-radius: 10px;
+    min-width: 16px;
+    text-align: center;
+  }
+
+  :global(.dark) .annotations-btn {
+    color: #e2e8f0;
+  }
+
+  :global(.dark) .annotations-btn:hover {
+    background: #4a5568;
+  }
+
+  .annotations-list-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 350px;
+    max-width: 90vw;
+    height: 100vh;
+    background: white;
+    border-left: 1px solid #e2e8f0;
+    z-index: 1002;
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
+    animation: slideIn 0.2s ease-out;
+    display: flex;
+    flex-direction: column;
+  }
+
+  @keyframes slideIn {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  .annotations-list-panel .annotation-panel-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .annotations-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+  }
+
+  .no-annotations {
+    color: #718096;
+    text-align: center;
+    padding: 2rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .annotation-item {
+    padding: 0.75rem;
+    border-left: 4px solid yellow;
+    background: #f7fafc;
+    border-radius: 0 6px 6px 0;
+    margin-bottom: 0.75rem;
+  }
+
+  .annotation-text {
+    font-size: 0.9rem;
+    color: #4a5568;
+    line-height: 1.5;
+    font-style: italic;
+  }
+
+  .annotation-item-note {
+    font-size: 0.85rem;
+    color: #718096;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed #e2e8f0;
+  }
+
+  .annotation-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+
+  .go-to-btn,
+  .delete-btn {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.8rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .go-to-btn {
+    background: #4299e1;
+    color: white;
+  }
+
+  .go-to-btn:hover {
+    background: #3182ce;
+  }
+
+  .delete-btn {
+    background: #fc8181;
+    color: white;
+  }
+
+  .delete-btn:hover {
+    background: #f56565;
+  }
+
+  :global(.dark) .annotations-list-panel {
+    background: #2d3748;
+    border-left-color: #4a5568;
+  }
+
+  :global(.dark) .annotations-list-panel .annotation-panel-header {
+    border-bottom-color: #4a5568;
+  }
+
+  :global(.dark) .no-annotations {
+    color: #a0aec0;
+  }
+
+  :global(.dark) .annotation-item {
+    background: #1a202c;
+  }
+
+  :global(.dark) .annotation-text {
+    color: #e2e8f0;
+  }
+
+  :global(.dark) .annotation-item-note {
+    color: #a0aec0;
+    border-top-color: #4a5568;
   }
 </style>
