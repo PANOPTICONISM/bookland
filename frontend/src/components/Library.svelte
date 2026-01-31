@@ -1,5 +1,6 @@
 <script>
   import { onMount } from "svelte";
+  import { SUPPORTED_EXTENSIONS, FILE_ACCEPT, FOLIATE_FORMATS } from "../lib/constants.js";
 
   let { onOpenBook } = $props();
 
@@ -43,8 +44,9 @@
 
     const file = files[0];
     const filename = file.name.toLowerCase();
-    if (!filename.endsWith(".epub") && !filename.endsWith(".pdf")) {
-      alert("Please select an EPUB or PDF file");
+    const isSupported = SUPPORTED_EXTENSIONS.some((ext) => filename.endsWith(ext));
+    if (!isSupported) {
+      alert("Supported formats: EPUB, PDF, MOBI, FB2, CBZ");
       return;
     }
 
@@ -94,13 +96,9 @@
     if (!book.readingProgress) return 0;
     try {
       const progress = JSON.parse(book.readingProgress);
-      if (progress.type === "epub" && progress.fraction !== undefined) {
+      if (FOLIATE_FORMATS.includes(progress.type) && progress.fraction !== undefined) {
         return Math.round(progress.fraction * 100);
-      } else if (
-        progress.type === "pdf" &&
-        progress.page &&
-        progress.totalPages
-      ) {
+      } else if (progress.type === "pdf" && progress.page && progress.totalPages) {
         return Math.round((progress.page / progress.totalPages) * 100);
       }
     } catch (e) {
@@ -184,7 +182,7 @@
   >
     <input
       type="file"
-      accept=".epub,.pdf"
+      accept={FILE_ACCEPT}
       onchange={handleFileSelect}
       id="file-input"
       style="display: none;"
@@ -206,7 +204,7 @@
           <polyline points="17 8 12 3 7 8" />
           <line x1="12" y1="3" x2="12" y2="15" />
         </svg>
-        <p>Drop EPUB or PDF file here or click to upload</p>
+        <p>Drop your book here or click to upload</p>
       {/if}
     </label>
   </div>
@@ -293,7 +291,7 @@
           d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
         />
       </svg>
-      <p>No books yet. Upload your first EPUB or PDF!</p>
+      <p>No books yet. Upload your first book!</p>
     </div>
   {/if}
 </div>

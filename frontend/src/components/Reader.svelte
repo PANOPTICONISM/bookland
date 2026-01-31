@@ -6,6 +6,7 @@
   import ReaderHeader from "./ReaderHeader.svelte";
   import AnnotationPanel from "./AnnotationPanel.svelte";
   import AnnotationsList from "./AnnotationsList.svelte";
+  import { FOLIATE_FORMATS, TEXT_FORMATS } from "../lib/constants.js";
 
   let { bookId, onClose } = $props();
 
@@ -43,8 +44,6 @@
   const isTouchDevice =
     typeof window !== "undefined" &&
     window.matchMedia("(pointer: coarse)").matches;
-
-  const foliateFormats = ["epub", "mobi", "fb2", "cbz"];
 
   pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
@@ -148,7 +147,7 @@
   };
 
   const goNext = () => {
-    if (foliateFormats.includes(bookMetadata?.fileType)) {
+    if (FOLIATE_FORMATS.includes(bookMetadata?.fileType)) {
       view?.next();
     } else if (bookMetadata?.fileType === "pdf" && currentPage < totalPages) {
       renderPDFPage(currentPage + 1);
@@ -156,7 +155,7 @@
   };
 
   const goPrev = () => {
-    if (foliateFormats.includes(bookMetadata?.fileType)) {
+    if (FOLIATE_FORMATS.includes(bookMetadata?.fileType)) {
       view?.prev();
     } else if (bookMetadata?.fileType === "pdf" && currentPage > 1) {
       renderPDFPage(currentPage - 1);
@@ -363,7 +362,7 @@
       readerContainer &&
       bookBlob &&
       bookMetadata &&
-      foliateFormats.includes(bookMetadata.fileType) &&
+      FOLIATE_FORMATS.includes(bookMetadata.fileType) &&
       !view
     ) {
       view = document.createElement("foliate-view");
@@ -466,7 +465,7 @@
           if (bookMetadata.readingProgress) {
             try {
               const progress = JSON.parse(bookMetadata.readingProgress);
-              if (foliateFormats.includes(progress.type) && progress.cfi) {
+              if (FOLIATE_FORMATS.includes(progress.type) && progress.cfi) {
                 view.goTo(progress.cfi);
                 return;
               }
@@ -495,8 +494,7 @@
 
   $effect(() => {
     const currentSize = fontSize;
-    const textFormats = ["epub", "mobi", "fb2"];
-    if (epubContentDoc && textFormats.includes(bookMetadata?.fileType)) {
+    if (epubContentDoc && TEXT_FORMATS.includes(bookMetadata?.fileType)) {
       const style = epubContentDoc.getElementById("bookland-font-style");
       if (style) {
         style.textContent = style.textContent.replace(

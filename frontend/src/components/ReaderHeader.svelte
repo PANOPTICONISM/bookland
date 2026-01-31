@@ -1,4 +1,6 @@
 <script>
+  import { FOLIATE_FORMATS, TEXT_FORMATS } from "../lib/constants.js";
+
   let {
     visible,
     fileType,
@@ -16,9 +18,6 @@
     onMouseEnter,
     onMouseLeave,
   } = $props();
-
-  const foliateFormats = ["epub", "mobi", "fb2", "cbz"];
-  const textFormats = ["epub", "mobi", "fb2"];
 
   const handleMouseEnter = () => {
     if (!isTouchDevice) onMouseEnter?.();
@@ -50,7 +49,7 @@
     Back to Library
   </button>
   <div class="header-controls">
-    {#if foliateFormats.includes(fileType)}
+    {#if FOLIATE_FORMATS.includes(fileType)}
       <button
         class="annotations-btn"
         onclick={onToggleAnnotations}
@@ -64,7 +63,7 @@
         {/if}
       </button>
     {/if}
-    {#if textFormats.includes(fileType)}
+    {#if TEXT_FORMATS.includes(fileType)}
       <div class="font-size-controls">
         <button
           class="font-btn"
