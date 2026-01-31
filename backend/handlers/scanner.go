@@ -31,8 +31,17 @@ func ScanDirectory(booksDir string) ([]models.Book, error) {
 		filename := entry.Name()
 		filePath := filepath.Join(booksDir, filename)
 
-		// Check if it's an EPUB or PDF
-		supportedTypes := map[string]string{".epub": "epub", ".pdf": "pdf"}
+		// Check if it's a supported format
+		supportedTypes := map[string]string{
+			".epub": "epub",
+			".pdf":  "pdf",
+			".mobi": "mobi",
+			".azw":  "mobi",
+			".azw3": "mobi",
+			".fb2":  "fb2",
+			".fbz":  "fb2",
+			".cbz":  "cbz",
+		}
 		ext := strings.ToLower(filepath.Ext(filename))
 		fileType, ok := supportedTypes[ext]
 		if !ok {
@@ -64,9 +73,11 @@ func ScanDirectory(booksDir string) ([]models.Book, error) {
 		// Extract metadata using shared functions
 		var title, author, coverPath string
 
-		if fileType == "epub" {
-			title, author, coverPath = ExtractEPUBMetadata(filePath, coversDir)
+		originalName := strings.TrimSuffix(filename, filepath.Ext(filename))
 
+		switch fileType {
+		case "epub":
+			title, author, coverPath = ExtractEPUBMetadata(filePath, coversDir)
 			// Rename cover file to use bookID instead of generic "cover"
 			if coverPath != "" {
 				coverExt := filepath.Ext(coverPath)
@@ -77,10 +88,13 @@ func ScanDirectory(booksDir string) ([]models.Book, error) {
 					coverPath = newCoverPath
 				}
 			}
-		} else {
-			originalName := strings.TrimSuffix(filename, filepath.Ext(filename))
+		case "pdf":
 			title, author = ExtractPDFMetadata(filePath, originalName)
 			coverPath = ExtractPDFCover(filePath, coversDir, bookID)
+		default:
+			// For mobi, fb2, cbz - use filename as title
+			title = originalName
+			author = "Unknown Author"
 		}
 
 		book := models.Book{

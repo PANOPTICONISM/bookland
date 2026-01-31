@@ -108,13 +108,15 @@
     };
   });
 
-  // Effect for EPUB rendering
+  // Formats supported by foliate-js
+  const foliateFormats = ["epub", "mobi", "fb2", "cbz"];
+
   $effect(() => {
     if (
       readerContainer &&
       bookBlob &&
       bookMetadata &&
-      bookMetadata.fileType === "epub" &&
+      foliateFormats.includes(bookMetadata.fileType) &&
       !view
     ) {
       // Create foliate-view web component
@@ -133,7 +135,7 @@
         // Save progress with CFI for precise location
         const cfi = e.detail.cfi;
         if (cfi) {
-          saveProgress(JSON.stringify({ type: "epub", cfi, fraction }));
+          saveProgress(JSON.stringify({ type: bookMetadata.fileType, cfi, fraction }));
         }
       });
 
@@ -173,12 +175,19 @@
 
       // Create a File object from the blob with proper filename
       // Foliate-js needs the filename to determine file type
+      const extMap = { epub: ".epub", mobi: ".mobi", fb2: ".fb2", cbz: ".cbz" };
+      const mimeMap = {
+        epub: "application/epub+zip",
+        mobi: "application/x-mobipocket-ebook",
+        fb2: "application/x-fictionbook+xml",
+        cbz: "application/vnd.comicbook+zip",
+      };
+      const ext = extMap[bookMetadata.fileType] || ".epub";
+      const mime = mimeMap[bookMetadata.fileType] || "application/epub+zip";
       const filename = bookMetadata.title
-        ? `${bookMetadata.title}.epub`
-        : "book.epub";
-      const file = new File([bookBlob], filename, {
-        type: "application/epub+zip",
-      });
+        ? `${bookMetadata.title}${ext}`
+        : `book${ext}`;
+      const file = new File([bookBlob], filename, { type: mime });
 
       // Open the book and restore saved progress or start from beginning
       view
@@ -187,7 +196,7 @@
           if (bookMetadata.readingProgress) {
             try {
               const progress = JSON.parse(bookMetadata.readingProgress);
-              if (progress.type === "epub" && progress.cfi) {
+              if (foliateFormats.includes(progress.type) && progress.cfi) {
                 view.goTo(progress.cfi);
                 return;
               }
@@ -198,7 +207,7 @@
           view.goTo(0);
         })
         .catch((err) => {
-          error = "Failed to open EPUB: " + err.message;
+          error = "Failed to open book: " + err.message;
         });
     }
   });
@@ -309,7 +318,7 @@
   };
 
   const goNext = () => {
-    if (bookMetadata?.fileType === "epub") {
+    if (foliateFormats.includes(bookMetadata?.fileType)) {
       view?.next();
     } else if (bookMetadata?.fileType === "pdf") {
       if (currentPage < totalPages) {
@@ -319,7 +328,7 @@
   };
 
   const goPrev = () => {
-    if (bookMetadata?.fileType === "epub") {
+    if (foliateFormats.includes(bookMetadata?.fileType)) {
       view?.prev();
     } else if (bookMetadata?.fileType === "pdf") {
       if (currentPage > 1) {
@@ -428,7 +437,9 @@
 
   $effect(() => {
     const currentSize = fontSize;
-    if (epubContentDoc && bookMetadata?.fileType === "epub") {
+    // Text-based formats support font size changes (not cbz which is images)
+    const textFormats = ["epub", "mobi", "fb2"];
+    if (epubContentDoc && textFormats.includes(bookMetadata?.fileType)) {
       const style = epubContentDoc.getElementById("bookland-font-style");
       if (style) {
         style.textContent = style.textContent.replace(
@@ -478,7 +489,7 @@
       Back to Library
     </button>
     <div class="header-controls">
-      {#if bookMetadata?.fileType === "epub"}
+      {#if ["epub", "mobi", "fb2"].includes(bookMetadata?.fileType)}
         <div class="font-size-controls">
           <button
             class="font-btn"

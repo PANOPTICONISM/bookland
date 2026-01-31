@@ -38,10 +38,19 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	fileExt := strings.ToLower(filepath.Ext(header.Filename))
-	supportedTypes := map[string]string{".epub": "epub", ".pdf": "pdf"}
+	supportedTypes := map[string]string{
+		".epub": "epub",
+		".pdf":  "pdf",
+		".mobi": "mobi",
+		".azw":  "mobi",
+		".azw3": "mobi",
+		".fb2":  "fb2",
+		".fbz":  "fb2",
+		".cbz":  "cbz",
+	}
 	fileType, ok := supportedTypes[fileExt]
 	if !ok {
-		http.Error(w, "Only .epub and .pdf files are supported", http.StatusBadRequest)
+		http.Error(w, "Unsupported file format", http.StatusBadRequest)
 		return
 	}
 
@@ -79,6 +88,10 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 	case "pdf":
 		title, author = ExtractPDFMetadata(bookPath, originalName)
 		coverPath = ExtractPDFCover(bookPath, coversDir, bookID)
+	default:
+		// For mobi, fb2, cbz - use filename as title
+		title = originalName
+		author = ""
 	}
 
 	// Ensure coverPath is absolute
@@ -198,10 +211,17 @@ func ServeBookFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set appropriate content type based on file type
-	if fileType == "pdf" {
-		w.Header().Set("Content-Type", "application/pdf")
+	contentTypes := map[string]string{
+		"epub": "application/epub+zip",
+		"pdf":  "application/pdf",
+		"mobi": "application/x-mobipocket-ebook",
+		"fb2":  "application/x-fictionbook+xml",
+		"cbz":  "application/vnd.comicbook+zip",
+	}
+	if ct, ok := contentTypes[fileType]; ok {
+		w.Header().Set("Content-Type", ct)
 	} else {
-		w.Header().Set("Content-Type", "application/epub+zip")
+		w.Header().Set("Content-Type", "application/octet-stream")
 	}
 
 	http.ServeFile(w, r, filePath)
