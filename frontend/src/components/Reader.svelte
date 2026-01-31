@@ -266,22 +266,26 @@
             `;
             doc.head.appendChild(style);
 
-            doc.addEventListener("mouseup", () => {
-              const selection = doc.getSelection();
-              if (selection && selection.rangeCount > 0) {
-                const range = selection.getRangeAt(0);
-                const text = selection.toString().trim();
-                if (text && text.length > 0) {
-                  selectedText = text;
-                  try {
-                    const cfi = view.getCFI(e.detail.index, range);
-                    selectedCFI = cfi || `section-${e.detail.index}`;
-                  } catch {
-                    selectedCFI = `section-${e.detail.index}`;
+            let selectionTimeout = null;
+            doc.addEventListener("selectionchange", () => {
+              if (selectionTimeout) clearTimeout(selectionTimeout);
+              selectionTimeout = setTimeout(() => {
+                const selection = doc.getSelection();
+                if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+                  const range = selection.getRangeAt(0);
+                  const text = selection.toString().trim();
+                  if (text && text.length > 0) {
+                    selectedText = text;
+                    try {
+                      const cfi = view.getCFI(e.detail.index, range);
+                      selectedCFI = cfi || `section-${e.detail.index}`;
+                    } catch {
+                      selectedCFI = `section-${e.detail.index}`;
+                    }
+                    showAnnotationPanel = true;
                   }
-                  showAnnotationPanel = true;
                 }
-              }
+              }, 200);
             });
           }
         } catch (err) {
