@@ -85,8 +85,11 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 	case "pdf":
 		title, author = ExtractPDFMetadata(filePath, originalName)
 		coverPath = ExtractPDFCover(filePath, storageDir, bookID)
+	case "cbz":
+		title = originalName
+		author = ""
+		coverPath = ExtractCBZCover(filePath, storageDir)
 	default:
-		// For mobi, fb2, cbz - use filename as title
 		title = originalName
 		author = ""
 	}

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -233,7 +234,7 @@ func ExtractEPUBMetadata(epubPath, coverDir string) (title, author, coverPath st
 // originalName is used as the fallback title (should not include file extension).
 func ExtractPDFMetadata(pdfPath, originalName string) (title, author string) {
 	title = originalName
-	author = "Unknown Author"
+	author = ""
 
 	file, err := os.Open(pdfPath)
 	if err != nil {
@@ -285,7 +286,6 @@ func ExtractPDFMetadata(pdfPath, originalName string) (title, author string) {
 
 // ExtractPDFCover extracts the first page of a PDF as a JPEG cover image using pdftoppm.
 func ExtractPDFCover(pdfPath, coverDir, bookID string) string {
-	// Extract to temp directory first
 	tempBase := filepath.Join(os.TempDir(), "bookland-pdf-"+bookID)
 	tempCover := tempBase + "-001.jpg"
 
@@ -311,24 +311,81 @@ func ExtractPDFCover(pdfPath, coverDir, bookID string) string {
 		return ""
 	}
 
-	// Verify temp file was created
 	if _, err := os.Stat(tempCover); err != nil {
 		return ""
 	}
+	defer os.Remove(tempCover)
 
-	// Create final directory and move file
 	if err := os.MkdirAll(coverDir, 0755); err != nil {
-		os.Remove(tempCover)
 		return ""
 	}
 
 	finalPath := filepath.Join(coverDir, "cover.jpg")
-	if err := os.Rename(tempCover, finalPath); err != nil {
-		os.Remove(tempCover)
+	if err := copyFile(tempCover, finalPath); err != nil {
 		return ""
 	}
 
 	return finalPath
+}
+
+func ExtractCBZCover(cbzPath, coverDir string) string {
+	reader, err := zip.OpenReader(cbzPath)
+	if err != nil {
+		return ""
+	}
+	defer reader.Close()
+
+	var imageFiles []*zip.File
+	for _, f := range reader.File {
+		name := strings.ToLower(f.Name)
+		if strings.HasSuffix(name, ".jpg") || strings.HasSuffix(name, ".jpeg") ||
+			strings.HasSuffix(name, ".png") || strings.HasSuffix(name, ".webp") {
+			imageFiles = append(imageFiles, f)
+		}
+	}
+
+	if len(imageFiles) == 0 {
+		return ""
+	}
+
+	sort.Slice(imageFiles, func(i, j int) bool {
+		return imageFiles[i].Name < imageFiles[j].Name
+	})
+
+	rc, err := imageFiles[0].Open()
+	if err != nil {
+		return ""
+	}
+	defer rc.Close()
+
+	data, err := io.ReadAll(rc)
+	if err != nil || !IsImageFile(data) {
+		return ""
+	}
+
+	ext := ".jpg"
+	if len(data) > 8 && data[0] == 0x89 && data[1] == 0x50 {
+		ext = ".png"
+	}
+
+	if err := os.MkdirAll(coverDir, 0755); err != nil {
+		return ""
+	}
+
+	coverPath := filepath.Join(coverDir, "cover"+ext)
+	if err := os.WriteFile(coverPath, data, 0644); err != nil {
+		return ""
+	}
+
+	return coverPath
+}
+
+func copyFile(src, dst string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, data, 0644)
 }
 
 // IsImageFile checks if data represents a valid image file by checking magic bytes.

@@ -80,6 +80,10 @@ func ScanDirectory(booksDir string) ([]models.Book, error) {
 		case "pdf":
 			title, author = ExtractPDFMetadata(filePath, originalName)
 			coverPath = ExtractPDFCover(filePath, storageDir, bookID)
+		case "cbz":
+			title = originalName
+			author = ""
+			coverPath = ExtractCBZCover(filePath, storageDir)
 		default:
 			title = originalName
 			author = ""
