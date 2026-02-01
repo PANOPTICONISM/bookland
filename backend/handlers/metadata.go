@@ -16,9 +16,9 @@ import (
 
 // ExtractEPUBMetadata extracts title, author, and cover from an EPUB file.
 // coverDir is where the cover image will be saved (as "cover.jpg" or "cover.png").
-func ExtractEPUBMetadata(epubPath, coverDir string) (title, author, coverPath string) {
-	title = "Unknown Title"
-	author = "Unknown Author"
+func ExtractEPUBMetadata(epubPath, coverDir, fallbackTitle string) (title, author, coverPath string) {
+	title = fallbackTitle
+	author = ""
 	coverPath = ""
 
 	reader, err := zip.OpenReader(epubPath)

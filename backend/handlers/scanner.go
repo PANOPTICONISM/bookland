@@ -76,7 +76,7 @@ func ScanDirectory(booksDir string) ([]models.Book, error) {
 
 		switch fileType {
 		case "epub":
-			title, author, coverPath = ExtractEPUBMetadata(filePath, storageDir)
+			title, author, coverPath = ExtractEPUBMetadata(filePath, storageDir, originalName)
 		case "pdf":
 			title, author = ExtractPDFMetadata(filePath, originalName)
 			coverPath = ExtractPDFCover(filePath, storageDir, bookID)

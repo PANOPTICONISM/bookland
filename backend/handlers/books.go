@@ -81,7 +81,7 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 	var title, author, coverPath string
 	switch fileType {
 	case "epub":
-		title, author, coverPath = ExtractEPUBMetadata(filePath, storageDir)
+		title, author, coverPath = ExtractEPUBMetadata(filePath, storageDir, originalName)
 	case "pdf":
 		title, author = ExtractPDFMetadata(filePath, originalName)
 		coverPath = ExtractPDFCover(filePath, storageDir, bookID)
