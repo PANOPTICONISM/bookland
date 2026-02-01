@@ -39,13 +39,11 @@ func main() {
 	}
 	booksPath = absBooksPath
 
-	// Create necessary directories
-	err = os.MkdirAll(filepath.Join(dataPath, "covers"), 0755)
-	if err != nil {
-		log.Fatal("Failed to create covers directory:", err)
-	}
-
 	handlers.DataPath = dataPath
+
+	if err := os.MkdirAll(dataPath, 0755); err != nil {
+		log.Fatal("Failed to create data directory:", err)
+	}
 
 	err = db.InitDB(dataPath)
 	if err != nil {

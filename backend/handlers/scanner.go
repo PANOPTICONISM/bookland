@@ -21,7 +21,6 @@ func ScanDirectory(booksDir string) ([]models.Book, error) {
 	}
 
 	var addedBooks []models.Book
-	coversDir := filepath.Join(DataPath, "covers")
 
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -36,10 +35,8 @@ func ScanDirectory(booksDir string) ([]models.Book, error) {
 			".epub": "epub",
 			".pdf":  "pdf",
 			".mobi": "mobi",
-			".azw":  "mobi",
-			".azw3": "mobi",
+			".azw3": "azw3",
 			".fb2":  "fb2",
-			".fbz":  "fb2",
 			".cbz":  "cbz",
 		}
 		ext := strings.ToLower(filepath.Ext(filename))
@@ -75,26 +72,17 @@ func ScanDirectory(booksDir string) ([]models.Book, error) {
 
 		originalName := strings.TrimSuffix(filename, filepath.Ext(filename))
 
+		storageDir := filepath.Join(DataPath, "books", bookID)
+
 		switch fileType {
 		case "epub":
-			title, author, coverPath = ExtractEPUBMetadata(filePath, coversDir)
-			// Rename cover file to use bookID instead of generic "cover"
-			if coverPath != "" {
-				coverExt := filepath.Ext(coverPath)
-				newCoverPath := filepath.Join(coversDir, bookID+coverExt)
-				if err := os.Rename(coverPath, newCoverPath); err != nil {
-					log.Printf("Failed to rename cover: %v", err)
-				} else {
-					coverPath = newCoverPath
-				}
-			}
+			title, author, coverPath = ExtractEPUBMetadata(filePath, storageDir)
 		case "pdf":
 			title, author = ExtractPDFMetadata(filePath, originalName)
-			coverPath = ExtractPDFCover(filePath, coversDir, bookID)
+			coverPath = ExtractPDFCover(filePath, storageDir, bookID)
 		default:
-			// For mobi, fb2, cbz - use filename as title
 			title = originalName
-			author = "Unknown Author"
+			author = ""
 		}
 
 		book := models.Book{

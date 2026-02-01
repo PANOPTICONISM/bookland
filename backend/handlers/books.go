@@ -42,10 +42,8 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 		".epub": "epub",
 		".pdf":  "pdf",
 		".mobi": "mobi",
-		".azw":  "mobi",
-		".azw3": "mobi",
+		".azw3": "azw3",
 		".fb2":  "fb2",
-		".fbz":  "fb2",
 		".cbz":  "cbz",
 	}
 	fileType, ok := supportedTypes[fileExt]
@@ -62,7 +60,7 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filePath := filepath.Join(storageDir, "book"+fileExt)
+	filePath := filepath.Join(storageDir, header.Filename)
 	dst, err := os.Create(filePath)
 	if err != nil {
 		http.Error(w, "Failed to save file", http.StatusInternalServerError)
@@ -81,13 +79,12 @@ func UploadBook(w http.ResponseWriter, r *http.Request) {
 	originalName := strings.TrimSuffix(header.Filename, filepath.Ext(header.Filename))
 
 	var title, author, coverPath string
-	coversDir := filepath.Join(DataPath, "covers")
 	switch fileType {
 	case "epub":
 		title, author, coverPath = ExtractEPUBMetadata(filePath, storageDir)
 	case "pdf":
 		title, author = ExtractPDFMetadata(filePath, originalName)
-		coverPath = ExtractPDFCover(filePath, coversDir, bookID)
+		coverPath = ExtractPDFCover(filePath, storageDir, bookID)
 	default:
 		// For mobi, fb2, cbz - use filename as title
 		title = originalName
@@ -324,8 +321,12 @@ func UploadCover(w http.ResponseWriter, r *http.Request) {
 		ext = ".png"
 	}
 
-	coversDir := filepath.Join(DataPath, "covers")
-	coverPath := filepath.Join(coversDir, bookID+ext)
+	storageDir := filepath.Join(DataPath, "books", bookID)
+	if err := os.MkdirAll(storageDir, 0755); err != nil {
+		http.Error(w, "Failed to create storage directory", http.StatusInternalServerError)
+		return
+	}
+	coverPath := filepath.Join(storageDir, "cover"+ext)
 	outFile, err := os.Create(coverPath)
 	if err != nil {
 		http.Error(w, "Failed to save cover", http.StatusInternalServerError)

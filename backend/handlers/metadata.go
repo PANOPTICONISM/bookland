@@ -211,6 +211,9 @@ func ExtractEPUBMetadata(epubPath, coverDir string) (title, author, coverPath st
 					ext = ".png"
 				}
 
+				if err := os.MkdirAll(coverDir, 0755); err != nil {
+					continue
+				}
 				coverPath = filepath.Join(coverDir, "cover"+ext)
 				outFile, err := os.Create(coverPath)
 				if err != nil {
@@ -282,9 +285,9 @@ func ExtractPDFMetadata(pdfPath, originalName string) (title, author string) {
 
 // ExtractPDFCover extracts the first page of a PDF as a JPEG cover image using pdftoppm.
 func ExtractPDFCover(pdfPath, coverDir, bookID string) string {
-	// Output path without extension (pdftoppm adds it)
-	outputBase := filepath.Join(coverDir, bookID)
-	coverPath := outputBase + "-001.jpg"
+	// Extract to temp directory first
+	tempBase := filepath.Join(os.TempDir(), "bookland-pdf-"+bookID)
+	tempCover := tempBase + "-001.jpg"
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -296,7 +299,7 @@ func ExtractPDFCover(pdfPath, coverDir, bookID string) string {
 		"-l", "1",
 		"-scale-to", "800",
 		pdfPath,
-		outputBase,
+		tempBase,
 	)
 
 	if err := cmd.Run(); err != nil {
@@ -308,14 +311,20 @@ func ExtractPDFCover(pdfPath, coverDir, bookID string) string {
 		return ""
 	}
 
-	// Rename to remove the -1 suffix
-	finalPath := filepath.Join(coverDir, bookID+".jpg")
-	if err := os.Rename(coverPath, finalPath); err != nil {
-		log.Printf("Failed to rename cover file: %v", err)
-		// Try to use the original path if rename fails
-		if _, err := os.Stat(coverPath); err == nil {
-			return coverPath
-		}
+	// Verify temp file was created
+	if _, err := os.Stat(tempCover); err != nil {
+		return ""
+	}
+
+	// Create final directory and move file
+	if err := os.MkdirAll(coverDir, 0755); err != nil {
+		os.Remove(tempCover)
+		return ""
+	}
+
+	finalPath := filepath.Join(coverDir, "cover.jpg")
+	if err := os.Rename(tempCover, finalPath); err != nil {
+		os.Remove(tempCover)
 		return ""
 	}
 
